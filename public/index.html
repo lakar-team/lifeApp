@@ -3,87 +3,274 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ADAM TOOL | Solarpunk Dashboard</title>
+    <title>ADAMTOOL — Your Solarpunk Digital Ecosystem</title>
+    <meta name="description" content="A sustainable, privacy-first platform to host, manage, and monetize your micro-tools. Built for creators who build with purpose.">
     <link rel="stylesheet" href="styles/main.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-    <nav class="navbar glass">
-        <div class="logo">
-            <i data-lucide="sun" color="#f59e0b" fill="#f59e0b"></i>
+
+    <!-- ========== NAVIGATION ========== -->
+    <nav class="navbar" id="navbar">
+        <a href="#" class="logo">
+            <div class="logo-icon">
+                <i data-lucide="sun" size="22" color="white"></i>
+            </div>
             ADAMTOOL
-        </div>
+        </a>
         <div class="nav-links">
-            <!-- Add future links here -->
+            <a href="#how-it-works">How It Works</a>
+            <a href="#tools">Tools</a>
+            <a href="#" class="btn-nav-cta">Sign In <i data-lucide="arrow-right" size="16"></i></a>
         </div>
-        <div class="user-profile">
-            <i data-lucide="leaf" size="20" color="#10b981"></i>
-            <span>Adamm</span>
-            <i data-lucide="chevron-down" size="16"></i>
-        </div>
+        <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation">
+            <i data-lucide="menu" size="26" color="var(--green-900)"></i>
+        </button>
     </nav>
 
-    <main class="main-viewport">
-        <header class="welcome-banner">
-            <h1>Harmonizing <span style="color: var(--accent-primary)">Logic & Life</span></h1>
-            <p>Welcome to your sustainable digital ecosystem. Access your essential tools powered by clarity and growth.</p>
-        </header>
+    <!-- ========== HERO SECTION ========== -->
+    <section class="hero">
+        <!-- Floating UI Cards -->
+        <div class="hero-float left">
+            <div class="float-icon" style="background: var(--green-100);">
+                <i data-lucide="shield-check" size="20" color="var(--green-600)"></i>
+            </div>
+            Code stays private
+        </div>
+        <div class="hero-float right">
+            <div class="float-icon" style="background: rgba(251, 191, 36, 0.15);">
+                <i data-lucide="zap" size="20" color="var(--amber-500)"></i>
+            </div>
+            Instant deployment
+        </div>
 
-        <section class="app-grid" id="app-grid">
-            <!-- App Card 1 -->
-            <div class="app-card glass">
-                <span class="usage-badge">
-                    <i data-lucide="zap" size="14"></i> Active
-                </span>
-                <div class="icon">
-                    <i data-lucide="sprout" color="white"></i>
+        <div class="hero-content">
+            <div class="hero-badge">
+                <span class="dot"></span>
+                Now in Early Access
+            </div>
+            <h1>
+                Build tools.<br>
+                <span class="gradient-text">Not empires.</span>
+            </h1>
+            <p class="subtitle">
+                A sustainable digital workshop for creators. Host your micro-tools privately, track usage transparently, and get paid fairly — all from one living dashboard.
+            </p>
+            <div class="hero-actions">
+                <a href="#tools" class="btn-primary">
+                    Explore Tools
+                    <i data-lucide="arrow-down-right" size="20"></i>
+                </a>
+                <a href="#how-it-works" class="btn-secondary">
+                    See How It Works
+                    <i data-lucide="play-circle" size="20"></i>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== METRICS BAR ========== -->
+    <div class="metrics-bar">
+        <div class="metrics-inner">
+            <div class="metric animate-on-scroll">
+                <div class="number" id="metric-tools">3</div>
+                <div class="label">Tools Hosted</div>
+            </div>
+            <div class="metric animate-on-scroll">
+                <div class="number">100%</div>
+                <div class="label">Code Privacy</div>
+            </div>
+            <div class="metric animate-on-scroll">
+                <div class="number">24/7</div>
+                <div class="label">Uptime on Edge</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== HOW IT WORKS ========== -->
+    <section class="section" id="how-it-works">
+        <div class="section-header animate-on-scroll">
+            <div class="section-label">
+                <i data-lucide="compass" size="14"></i>
+                How It Works
+            </div>
+            <h2>Three steps to your<br>digital greenhouse</h2>
+            <p>No complex setups. No vendor lock-in. Just drop your tools, customize your space, and let the platform handle the rest.</p>
+        </div>
+
+        <div class="steps-grid">
+            <div class="step-card animate-on-scroll">
+                <span class="step-number">01</span>
+                <div class="step-icon" style="background: linear-gradient(135deg, var(--green-100), var(--green-200));">
+                    <i data-lucide="upload" size="36" color="var(--green-700)"></i>
                 </div>
-                <h3>Growth Tracker</h3>
-                <p>Monitor your progress and developmental milestones in your personalized garden of apps.</p>
-                <a href="/apps/math-genie/" class="launch-btn">Open Tool <i data-lucide="arrow-right" size="16"></i></a>
+                <h3>Plant your tools</h3>
+                <p>Drop any HTML file, mini-app, or interactive tool into the system. It gets its own secure sandbox instantly.</p>
+            </div>
+            <div class="step-card animate-on-scroll" style="transition-delay: 0.1s;">
+                <span class="step-number">02</span>
+                <div class="step-icon" style="background: linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.25));">
+                    <i data-lucide="eye" size="36" color="var(--amber-600)"></i>
+                </div>
+                <h3>Watch them grow</h3>
+                <p>Every interaction is tracked privately. See who uses what, when, and how — all without invasive analytics.</p>
+            </div>
+            <div class="step-card animate-on-scroll" style="transition-delay: 0.2s;">
+                <span class="step-number">03</span>
+                <div class="step-icon" style="background: linear-gradient(135deg, var(--green-800), var(--green-900));">
+                    <i data-lucide="coins" size="36" color="var(--green-300)"></i>
+                </div>
+                <h3>Harvest the value</h3>
+                <p>When a tool earns its keep, gate it. Add logins, usage limits, or subscriptions — your rules, your revenue.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== TOOLS SHOWCASE ========== -->
+    <section class="section tools-section" id="tools">
+        <div class="section-header animate-on-scroll">
+            <div class="section-label">
+                <i data-lucide="grid-2x2" size="14"></i>
+                Your Ecosystem
+            </div>
+            <h2>Micro-tools, macro impact</h2>
+            <p>Each tool lives in its own protected environment. Launch them, share them, or keep them entirely to yourself.</p>
+        </div>
+
+        <div class="tools-grid">
+            <!-- Tool 1 -->
+            <div class="tool-card animate-on-scroll">
+                <div class="tool-status active">
+                    <i data-lucide="circle-dot" size="12"></i> Live
+                </div>
+                <div class="tool-icon" style="background: linear-gradient(135deg, var(--green-500), var(--green-400));">
+                    <i data-lucide="calculator" size="28" color="white"></i>
+                </div>
+                <h3>Math Genie</h3>
+                <p>Quick-fire calculations and formula evaluation. Drop in an equation, get instant results with step breakdown.</p>
+                <a href="/apps/math-genie/" class="tool-link">
+                    Launch tool <i data-lucide="arrow-right" size="16"></i>
+                </a>
             </div>
 
-            <!-- App Card 2 -->
-            <div class="app-card glass">
-                <span class="usage-badge" style="color: var(--text-muted)">
-                    <i data-lucide="lock" size="14"></i> Standby
-                </span>
-                <div class="icon" style="background: linear-gradient(135deg, var(--accent-secondary), #fbbf24)">
-                    <i data-lucide="sun-medium" color="white"></i>
+            <!-- Tool 2 -->
+            <div class="tool-card animate-on-scroll" style="transition-delay: 0.1s;">
+                <div class="tool-status standby">
+                    <i data-lucide="clock" size="12"></i> Coming Soon
                 </div>
-                <h3>Solar Node</h3>
-                <p>Resource management and power allocation for your decentralized digital assets.</p>
-                <a href="#" class="launch-btn">Observe <i data-lucide="arrow-right" size="16"></i></a>
+                <div class="tool-icon" style="background: linear-gradient(135deg, var(--amber-500), var(--amber-400));">
+                    <i data-lucide="palette" size="28" color="white"></i>
+                </div>
+                <h3>Color Forge</h3>
+                <p>Generate harmonious color palettes from images, hex codes, or nature-inspired themes for your next project.</p>
+                <a href="#" class="tool-link" style="opacity: 0.4; pointer-events: none;">
+                    In development <i data-lucide="loader" size="16"></i>
+                </a>
             </div>
 
-            <!-- App Card 3 -->
-            <div class="app-card glass">
-                <span class="usage-badge" style="color: var(--text-muted)">
-                    <i data-lucide="lock" size="14"></i> Standby
-                </span>
-                <div class="icon" style="background: linear-gradient(135deg, var(--text-main), #14532d)">
-                    <i data-lucide="wind" color="white"></i>
+            <!-- Tool 3 -->
+            <div class="tool-card animate-on-scroll" style="transition-delay: 0.2s;">
+                <div class="tool-status standby">
+                    <i data-lucide="clock" size="12"></i> Coming Soon
                 </div>
-                <h3>Airflow Matrix</h3>
-                <p>Environmental data visualizer for tracking atmospheric changes in your local workspace.</p>
-                <a href="#" class="launch-btn">Observe <i data-lucide="arrow-right" size="16"></i></a>
+                <div class="tool-icon" style="background: linear-gradient(135deg, var(--green-800), var(--green-700));">
+                    <i data-lucide="file-json" size="28" color="var(--green-300)"></i>
+                </div>
+                <h3>Data Weaver</h3>
+                <p>Transform, validate, and convert data between JSON, CSV, and XML with a visual drag-and-drop interface.</p>
+                <a href="#" class="tool-link" style="opacity: 0.4; pointer-events: none;">
+                    In development <i data-lucide="loader" size="16"></i>
+                </a>
             </div>
 
-            <!-- Add App -->
-            <div class="app-card" style="border: 2px dashed var(--border-glass); background: transparent; display: flex; align-items: center; justify-content: center; flex-direction: column; cursor: pointer;">
-                <div style="background: var(--bg-surface); padding: 20px; border-radius: 50%;">
-                    <i data-lucide="plus" size="40" color="var(--accent-primary)"></i>
+            <!-- Add Tool Card -->
+            <div class="tool-card tool-card-add animate-on-scroll" style="transition-delay: 0.3s;">
+                <div class="add-icon">
+                    <i data-lucide="plus" size="28" color="var(--green-500)"></i>
                 </div>
-                <p style="margin-top: 1.5rem; font-weight: 700; color: var(--accent-primary)">Cultivate New Tool</p>
+                <span>Cultivate New Tool</span>
             </div>
-        </section>
-    </main>
+        </div>
+    </section>
 
+    <!-- ========== CTA BANNER ========== -->
+    <section class="cta-section">
+        <div class="cta-banner animate-on-scroll">
+            <h2>Ready to grow your<br>digital garden?</h2>
+            <p>Start hosting your tools for free. Scale when you're ready. No credit card, no contracts, no nonsense.</p>
+            <a href="#tools" class="btn-cta">
+                Get Started Free
+                <i data-lucide="arrow-right" size="20"></i>
+            </a>
+        </div>
+    </section>
+
+    <!-- ========== FOOTER ========== -->
+    <footer class="footer">
+        <div class="footer-inner">
+            <div class="footer-brand">
+                <i data-lucide="sun" size="20" color="var(--green-600)" fill="var(--amber-400)"></i>
+                ADAMTOOL
+            </div>
+            <div class="footer-links">
+                <a href="#">Privacy</a>
+                <a href="#">Terms</a>
+                <a href="#">GitHub</a>
+            </div>
+            <div class="footer-copy">&copy; 2026 ADAMTOOL. Built with purpose.</div>
+        </div>
+    </footer>
+
+    <!-- ========== SCRIPTS ========== -->
     <script>
+        // Initialize Lucide icons
         lucide.createIcons();
+
+        // Navbar scroll effect
+        const navbar = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            navbar.classList.toggle('scrolled', window.scrollY > 20);
+        });
+
+        // Scroll-triggered animations (IntersectionObserver)
+        const animatedElements = document.querySelectorAll('.animate-on-scroll');
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.15, rootMargin: '0px 0px -50px 0px' });
+
+        animatedElements.forEach(el => observer.observe(el));
+
+        // Animate metric numbers on scroll
+        function animateNumber(el, target, suffix = '') {
+            let current = 0;
+            const increment = target / 40;
+            const timer = setInterval(() => {
+                current += increment;
+                if (current >= target) {
+                    current = target;
+                    clearInterval(timer);
+                }
+                el.textContent = Math.floor(current) + suffix;
+            }, 30);
+        }
+
+        const metricsObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const toolsMetric = document.getElementById('metric-tools');
+                    if (toolsMetric) animateNumber(toolsMetric, 3, '');
+                    metricsObserver.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.5 });
+
+        const metricsBar = document.querySelector('.metrics-bar');
+        if (metricsBar) metricsObserver.observe(metricsBar);
     </script>
 </body>
 </html>
