@@ -1,0 +1,18 @@
+[
+    {
+        "id": "math-genie",
+        "name": "Math Genie",
+        "description": "Advanced algorithmic calculator for complex equations and financial modeling.",
+        "icon": "calculator",
+        "category": "Tools",
+        "path": "/apps/math-genie/"
+    },
+    {
+        "id": "grid-master",
+        "name": "Grid Master",
+        "description": "Responsive layout tester and CSS grid generator for modern web designers.",
+        "icon": "layout",
+        "category": "Design",
+        "path": "#"
+    }
+]

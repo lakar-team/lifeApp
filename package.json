@@ -1,0 +1,15 @@
+{
+  "name": "app-hub-portal",
+  "version": "1.0.0",
+  "description": "A private portal for simple HTML apps",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "morgan": "^1.10.0"
+  }
+}
