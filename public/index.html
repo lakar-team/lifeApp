@@ -3,79 +3,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>App Hub | Your Private Workspace</title>
+    <title>ADAM TOOL | Solarpunk Dashboard</title>
     <link rel="stylesheet" href="styles/main.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
     <nav class="navbar glass">
-        <div class="logo">APP HUB</div>
+        <div class="logo">
+            <i data-lucide="sun" color="#f59e0b" fill="#f59e0b"></i>
+            ADAMTOOL
+        </div>
         <div class="nav-links">
-            <!-- Space for future navigation items -->
+            <!-- Add future links here -->
         </div>
         <div class="user-profile">
-            <i data-lucide="user" size="20"></i>
-            <span>Guest User</span>
+            <i data-lucide="leaf" size="20" color="#10b981"></i>
+            <span>Adamm</span>
             <i data-lucide="chevron-down" size="16"></i>
         </div>
     </nav>
 
     <main class="main-viewport">
         <header class="welcome-banner">
-            <h1>Welcome, <span style="color: var(--accent-primary)">Explorer</span></h1>
-            <p>Access your private collection of tools and mini-apps.</p>
+            <h1>Harmonizing <span style="color: var(--accent-primary)">Logic & Life</span></h1>
+            <p>Welcome to your sustainable digital ecosystem. Access your essential tools powered by clarity and growth.</p>
         </header>
 
         <section class="app-grid" id="app-grid">
-            <!-- App Card 1: Sample -->
+            <!-- App Card 1 -->
             <div class="app-card glass">
-                <span class="usage-badge">Private</span>
+                <span class="usage-badge">
+                    <i data-lucide="zap" size="14"></i> Active
+                </span>
                 <div class="icon">
-                    <i data-lucide="calculator" color="white"></i>
+                    <i data-lucide="sprout" color="white"></i>
                 </div>
-                <h3>Math Genie</h3>
-                <p>Advanced algorithmic calculator for complex equations and financial modeling.</p>
-                <a href="/apps/math-genie/" class="launch-btn">Launch App</a>
+                <h3>Growth Tracker</h3>
+                <p>Monitor your progress and developmental milestones in your personalized garden of apps.</p>
+                <a href="/apps/math-genie/" class="launch-btn">Open Tool <i data-lucide="arrow-right" size="16"></i></a>
             </div>
 
-            <!-- App Card 2: Sample -->
+            <!-- App Card 2 -->
             <div class="app-card glass">
-                <span class="usage-badge">Private</span>
-                <div class="icon" style="background: var(--accent-secondary)">
-                    <i data-lucide="layout" color="white"></i>
+                <span class="usage-badge" style="color: var(--text-muted)">
+                    <i data-lucide="lock" size="14"></i> Standby
+                </span>
+                <div class="icon" style="background: linear-gradient(135deg, var(--accent-secondary), #fbbf24)">
+                    <i data-lucide="sun-medium" color="white"></i>
                 </div>
-                <h3>Grid Master</h3>
-                <p>Responsive layout tester and CSS grid generator for modern web designers.</p>
-                <a href="#" class="launch-btn">Launch App</a>
+                <h3>Solar Node</h3>
+                <p>Resource management and power allocation for your decentralized digital assets.</p>
+                <a href="#" class="launch-btn">Observe <i data-lucide="arrow-right" size="16"></i></a>
             </div>
 
-            <!-- App Card 3: Sample -->
+            <!-- App Card 3 -->
             <div class="app-card glass">
-                <span class="usage-badge">Experimental</span>
-                <div class="icon" style="background: #10b981">
-                    <i data-lucide="terminal" color="white"></i>
+                <span class="usage-badge" style="color: var(--text-muted)">
+                    <i data-lucide="lock" size="14"></i> Standby
+                </span>
+                <div class="icon" style="background: linear-gradient(135deg, var(--text-main), #14532d)">
+                    <i data-lucide="wind" color="white"></i>
                 </div>
-                <h3>Script Runner</h3>
-                <p>Execute and debug small JS snippets in a isolated sandbox environment.</p>
-                <a href="#" class="launch-btn">Launch App</a>
+                <h3>Airflow Matrix</h3>
+                <p>Environmental data visualizer for tracking atmospheric changes in your local workspace.</p>
+                <a href="#" class="launch-btn">Observe <i data-lucide="arrow-right" size="16"></i></a>
             </div>
 
-            <!-- Placeholder for adding new apps -->
+            <!-- Add App -->
             <div class="app-card" style="border: 2px dashed var(--border-glass); background: transparent; display: flex; align-items: center; justify-content: center; flex-direction: column; cursor: pointer;">
-                <i data-lucide="plus" size="32" color="var(--text-muted)"></i>
-                <p style="margin-top: 1rem; margin-bottom: 0;">Add New App</p>
+                <div style="background: var(--bg-surface); padding: 20px; border-radius: 50%;">
+                    <i data-lucide="plus" size="40" color="var(--accent-primary)"></i>
+                </div>
+                <p style="margin-top: 1.5rem; font-weight: 700; color: var(--accent-primary)">Cultivate New Tool</p>
             </div>
         </section>
     </main>
 
     <script>
-        // Initialize Lucide icons
         lucide.createIcons();
-
-        // Future: Fetch apps from config and render dynamically
     </script>
 </body>
 </html>
