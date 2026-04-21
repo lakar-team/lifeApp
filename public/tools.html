@@ -134,6 +134,8 @@
 
         // ---- State ----
         let supabaseClient = null;
+        let supabaseUrl = '';
+        let supabaseAnonKey = '';
         let currentUser = null;
         let allApps = [];
         let allCategories = [];
@@ -145,7 +147,9 @@
             try {
                 const cfg = await fetch('/api/config').then(r => r.json());
                 if (cfg.supabaseUrl && cfg.supabaseAnonKey) {
-                    supabaseClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+                    supabaseUrl = cfg.supabaseUrl;
+                    supabaseAnonKey = cfg.supabaseAnonKey;
+                    supabaseClient = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
                 }
             } catch (e) {
                 console.error('Config error:', e);
@@ -208,13 +212,13 @@
 
         // ---- Load Data from Supabase ----
         async function loadData() {
-            const ANON_KEY = supabaseClient ? supabaseClient.supabaseKey : '';
-            const BASE = supabaseClient ? supabaseClient.supabaseUrl + '/rest/v1' : '';
+            const BASE = supabaseUrl ? supabaseUrl + '/rest/v1' : '';
+            const ANON_KEY = supabaseAnonKey;
 
             if (!BASE) {
-                // Fallback: use hardcoded data from seed
+                // Fallback: use hardcoded data if config not loaded
                 allApps = [
-                    { id: '1', slug: 'math-genie', name: 'Math Genie', description: 'Quick-fire calculations.', icon: 'calculator', path: '/apps/math-genie/', status: 'live', categories: ['utilities'] },
+                    { id: '1', slug: 'math-genie', name: 'Math Genie', description: 'Quick-fire calculations and unit conversions.', icon: 'calculator', path: '/apps/math-genie/', status: 'live', categories: ['utilities'] },
                 ];
                 allCategories = [{ name: 'Utilities', slug: 'utilities' }];
                 renderCategories();
