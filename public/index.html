@@ -21,6 +21,11 @@
         <div class="nav-links">
             <a href="#how-it-works">How It Works</a>
             <a href="#tools">Tools</a>
+            <div class="user-profile" id="user-profile">
+                <i data-lucide="leaf" size="20" color="#10b981"></i>
+                <span id="login-status">Guest</span>
+                <i data-lucide="chevron-down" size="16"></i>
+            </div>
             <a href="#" class="btn-nav-cta">Sign In <i data-lucide="arrow-right" size="16"></i></a>
         </div>
         <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation">
@@ -226,7 +231,39 @@
         // Initialize Lucide icons
         lucide.createIcons();
 
+        // --- Auth Simulation ---
+        const userProfile = document.getElementById('user-profile');
+        const loginStatus = document.getElementById('login-status');
+
+        function updateAuthUI() {
+            const hasSession = document.cookie.includes('adam_tool_session=true');
+            if (hasSession) {
+                loginStatus.innerText = 'Authenticated';
+                userProfile.style.borderColor = 'var(--accent-primary)';
+            } else {
+                loginStatus.innerText = 'Guest (Click to Login)';
+                userProfile.style.borderColor = 'var(--border-soft)';
+            }
+        }
+
+        userProfile.addEventListener('click', () => {
+            const hasSession = document.cookie.includes('adam_tool_session=true');
+            if (hasSession) {
+                // Logout
+                document.cookie = "adam_tool_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                alert('🌿 Session cleared. You are back to Guest mode.');
+            } else {
+                // Login
+                document.cookie = "adam_tool_session=true; path=/; max-age=3600";
+                alert('✨ Solarpunk session created. You can now access protected tools!');
+            }
+            updateAuthUI();
+        });
+
+        updateAuthUI();
+
         // Navbar scroll effect
+// ... rest of the script ...
         const navbar = document.getElementById('navbar');
         window.addEventListener('scroll', () => {
             navbar.classList.toggle('scrolled', window.scrollY > 20);
