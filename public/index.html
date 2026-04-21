@@ -24,7 +24,7 @@
         <div class="nav-links" id="nav-links">
             <a href="#tools">Tools</a>
             <a href="#how-it-works">How It Works</a>
-            <a href="/login" class="btn-nav-cta" id="nav-sign-in">
+            <a href="/login" class="btn-nav-cta" id="nav-cta">
                 Sign In <i data-lucide="arrow-right" size="16"></i>
             </a>
         </div>
@@ -253,6 +253,18 @@
     <script>
         // Init Lucide icons
         lucide.createIcons();
+
+        // If already signed in, update nav CTA to go to tools
+        fetch('/api/me').then(r => r.json()).then(me => {
+            if (me.authenticated) {
+                const cta = document.getElementById('nav-cta');
+                if (cta) {
+                    cta.href = '/tools';
+                    cta.innerHTML = 'Go to Tools <i data-lucide="arrow-right" size="16"></i>';
+                    lucide.createIcons();
+                }
+            }
+        }).catch(() => {});
 
         // Navbar scroll shadow
         const navbar = document.getElementById('navbar');

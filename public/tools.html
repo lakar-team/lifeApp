@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tools — ADAMTOOL</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles/main.css">
+    <link rel="stylesheet" href="/styles/tools.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+
+    <!-- ========== NAVBAR ========== -->
+    <nav class="navbar scrolled" id="navbar">
+        <a href="/" class="logo">
+            <div class="logo-icon">
+                <i data-lucide="sun" size="22" color="white"></i>
+            </div>
+            ADAMTOOL
+        </a>
+
+        <div class="nav-links" id="nav-links">
+            <a href="/tools" class="nav-active">Tools</a>
+            <a href="#" id="creator-link" style="display:none;">
+                <i data-lucide="layout-dashboard" size="14"></i> Creator
+            </a>
+            <div class="user-chip" id="user-chip">
+                <div class="user-avatar" id="user-avatar">?</div>
+                <span id="user-email">Loading...</span>
+                <button class="user-menu-btn" id="user-menu-btn" aria-label="User menu">
+                    <i data-lucide="chevron-down" size="16"></i>
+                </button>
+            </div>
+        </div>
+
+        <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation">
+            <i data-lucide="menu" size="26" color="var(--green-900)"></i>
+        </button>
+    </nav>
+
+    <!-- User dropdown menu -->
+    <div class="user-menu" id="user-menu">
+        <div class="user-menu-header">
+            <div class="user-avatar-lg" id="user-avatar-lg">?</div>
+            <div>
+                <div class="user-menu-email" id="user-menu-email">—</div>
+                <div class="user-menu-role" id="user-menu-role">Member</div>
+            </div>
+        </div>
+        <div class="user-menu-divider"></div>
+        <button class="user-menu-item danger" id="logout-btn">
+            <i data-lucide="log-out" size="16"></i>
+            Sign Out
+        </button>
+    </div>
+    <div class="menu-overlay" id="menu-overlay"></div>
+
+    <!-- ========== MAIN CONTENT ========== -->
+    <main class="tools-main">
+
+        <!-- Page Header -->
+        <div class="tools-header">
+            <div>
+                <h1>The Collection</h1>
+                <p id="tools-subtitle">Browse and launch your tools</p>
+            </div>
+        </div>
+
+        <!-- Search + Filter -->
+        <div class="tools-filter">
+            <div class="search-bar">
+                <i data-lucide="search" size="18" color="var(--text-muted)"></i>
+                <input type="text" id="tool-search" placeholder="Search tools..." autocomplete="off">
+            </div>
+            <div class="category-pills" id="category-pills">
+                <button class="pill active" data-category="all">All</button>
+                <!-- Categories loaded dynamically -->
+            </div>
+        </div>
+
+        <!-- Tools Grid -->
+        <div class="tools-grid" id="tools-grid">
+            <!-- Skeleton loaders -->
+            <div class="tool-card skeleton"></div>
+            <div class="tool-card skeleton"></div>
+            <div class="tool-card skeleton"></div>
+        </div>
+
+        <!-- No results -->
+        <div class="no-results" id="no-results" style="display:none;">
+            <i data-lucide="search-x" size="40" color="var(--text-muted)"></i>
+            <p>No tools match your search.</p>
+        </div>
+
+    </main>
+
+    <!-- ========== APP LAUNCHER (Iframe Overlay) ========== -->
+    <div class="app-launcher" id="app-launcher">
+        <div class="launcher-bar">
+            <div class="launcher-info">
+                <div class="launcher-icon" id="launcher-icon">
+                    <i data-lucide="wrench" size="18" color="white"></i>
+                </div>
+                <span id="launcher-title">App</span>
+            </div>
+            <div class="launcher-controls">
+                <a id="launcher-new-tab" href="#" target="_blank" title="Open in new tab" class="launcher-ctrl-btn">
+                    <i data-lucide="external-link" size="16"></i>
+                </a>
+                <button id="launcher-close" class="launcher-ctrl-btn" title="Close">
+                    <i data-lucide="x" size="18"></i>
+                </button>
+            </div>
+        </div>
+        <div class="launcher-body">
+            <iframe id="app-iframe" src="" title="App"></iframe>
+            <div class="launcher-loading" id="launcher-loading">
+                <div class="ring-loader"></div>
+                <p>Loading tool…</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== SCRIPTS ========== -->
+    <script>
+    (() => {
+        // ---- Icons ----
+        lucide.createIcons();
+
+        // ---- State ----
+        let supabase = null;
+        let currentUser = null;
+        let allApps = [];
+        let allCategories = [];
+        let activeCategory = 'all';
+
+        // ---- Bootstrap ----
+        async function init() {
+            // Load config
+            try {
+                const cfg = await fetch('/api/config').then(r => r.json());
+                if (cfg.supabaseUrl && cfg.supabaseAnonKey) {
+                    supabase = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+                }
+            } catch (e) {
+                console.error('Config error:', e);
+            }
+
+            // Check auth via server (reads HttpOnly cookie  reliably)
+            const me = await fetch('/api/me').then(r => r.json()).catch(() => ({ authenticated: false }));
+
+            if (!me.authenticated) {
+                // No valid session — check Supabase client-side as fallback
+                if (supabase) {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (!session) {
+                        window.location.href = '/login?redirect=/tools';
+                        return;
+                    }
+                    currentUser = { email: session.user.email, id: session.user.id, isCreator: false };
+                } else {
+                    window.location.href = '/login?redirect=/tools';
+                    return;
+                }
+            } else {
+                currentUser = me;
+            }
+
+            // Refresh session cookie whenever Supabase rotates the token
+            if (supabase) {
+                supabase.auth.onAuthStateChange(async (_event, session) => {
+                    if (session?.access_token) {
+                        await fetch('/api/session', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ token: session.access_token })
+                        });
+                    }
+                });
+            }
+
+            renderUserUI();
+            await loadData();
+        }
+
+        // ---- User UI ----
+        function renderUserUI() {
+            const initial = (currentUser.email || '?').charAt(0).toUpperCase();
+            document.getElementById('user-avatar').textContent = initial;
+            document.getElementById('user-avatar-lg').textContent = initial;
+            document.getElementById('user-email').textContent = currentUser.email || '';
+            document.getElementById('user-menu-email').textContent = currentUser.email || '';
+            document.getElementById('user-menu-role').textContent = currentUser.isCreator ? '🌿 Creator' : 'Member';
+            document.getElementById('tools-subtitle').textContent =
+                `Welcome back, ${currentUser.email?.split('@')[0] || 'there'}`;
+
+            if (currentUser.isCreator) {
+                const link = document.getElementById('creator-link');
+                link.href = '/creator';
+                link.style.display = 'inline-flex';
+            }
+        }
+
+        // ---- Load Data from Supabase ----
+        async function loadData() {
+            const ANON_KEY = supabase ? supabase.supabaseKey : '';
+            const BASE = supabase ? supabase.supabaseUrl + '/rest/v1' : '';
+
+            if (!BASE) {
+                // Fallback: use hardcoded data from seed
+                allApps = [
+                    { id: '1', slug: 'math-genie', name: 'Math Genie', description: 'Quick-fire calculations.', icon: 'calculator', path: '/apps/math-genie/', status: 'live', categories: ['utilities'] },
+                ];
+                allCategories = [{ name: 'Utilities', slug: 'utilities' }];
+                renderCategories();
+                renderApps(allApps);
+                return;
+            }
+
+            const headers = { 'apikey': ANON_KEY, 'Authorization': `Bearer ${ANON_KEY}` };
+
+            try {
+                // Fetch categories (excluding 'all' — we add that manually)
+                const cats = await fetch(`${BASE}/app_categories?select=name,slug&slug=neq.all&order=name.asc`, { headers }).then(r => r.json());
+                allCategories = Array.isArray(cats) ? cats : [];
+
+                // Fetch apps with their categories
+                const apps = await fetch(`${BASE}/apps?select=id,slug,name,description,icon,path,status,app_category_map(app_categories(name,slug))&status=neq.hidden&order=name.asc`, { headers }).then(r => r.json());
+                allApps = Array.isArray(apps) ? apps.map(a => ({
+                    ...a,
+                    categories: (a.app_category_map || []).map(m => m.app_categories?.slug).filter(Boolean)
+                })) : [];
+
+                renderCategories();
+                renderApps(allApps);
+            } catch (e) {
+                console.error('Data load error:', e);
+                renderApps([]);
+            }
+        }
+
+        // ---- Render Categories ----
+        function renderCategories() {
+            const container = document.getElementById('category-pills');
+            // Keep the "All" pill, add dynamic ones
+            const existing = container.querySelectorAll('.pill:not([data-category="all"])');
+            existing.forEach(p => p.remove());
+
+            allCategories.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.className = 'pill';
+                btn.dataset.category = cat.slug;
+                btn.textContent = cat.name;
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+                    btn.classList.add('active');
+                    activeCategory = cat.slug;
+                    filterAndRender();
+                });
+                container.appendChild(btn);
+            });
+
+            document.querySelector('.pill[data-category="all"]').addEventListener('click', function() {
+                document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+                this.classList.add('active');
+                activeCategory = 'all';
+                filterAndRender();
+            });
+        }
+
+        // ---- Render Apps ----
+        function renderApps(apps) {
+            const grid = document.getElementById('tools-grid');
+            const noResults = document.getElementById('no-results');
+            grid.innerHTML = '';
+
+            const live = apps.filter(a => a.status === 'live');
+            const soon = apps.filter(a => a.status === 'coming_soon');
+            const sorted = [...live, ...soon];
+
+            if (sorted.length === 0) {
+                noResults.style.display = 'flex';
+                return;
+            }
+            noResults.style.display = 'none';
+
+            sorted.forEach((app, i) => {
+                grid.appendChild(buildCard(app, i));
+            });
+
+            lucide.createIcons();
+        }
+
+        function buildCard(app, index) {
+            const isLive = app.status === 'live';
+            const card = document.createElement('div');
+            card.className = 'tool-card animate-on-scroll';
+            card.style.transitionDelay = `${index * 0.06}s`;
+            card.dataset.categories = (app.categories || []).join(',');
+
+            const catTags = (app.categories || []).map(slug => {
+                const cat = allCategories.find(c => c.slug === slug);
+                return cat ? `<span class="tag">${cat.name}</span>` : '';
+            }).join('');
+
+            card.innerHTML = `
+                <div class="tool-status ${isLive ? 'active' : 'standby'}">
+                    <i data-lucide="${isLive ? 'circle-dot' : 'clock'}" size="12"></i>
+                    ${isLive ? 'Live' : 'Coming Soon'}
+                </div>
+                <div class="tool-icon" style="background: ${iconGradient(app.icon)}">
+                    <i data-lucide="${app.icon || 'wrench'}" size="28" color="white"></i>
+                </div>
+                <h3>${app.name}</h3>
+                <p>${app.description}</p>
+                <div class="tool-tags">${catTags}</div>
+                ${isLive
+                    ? `<button class="tool-link launch-btn" data-path="${app.path}" data-name="${app.name}" data-icon="${app.icon}">
+                        Launch <i data-lucide="arrow-right" size="16"></i>
+                       </button>`
+                    : `<span class="tool-link muted">In development <i data-lucide="loader" size="16"></i></span>`
+                }
+            `;
+
+            if (isLive) {
+                card.querySelector('.launch-btn').addEventListener('click', () => {
+                    openLauncher(app);
+                });
+            }
+
+            return card;
+        }
+
+        function iconGradient(icon) {
+            const palettes = {
+                calculator: 'linear-gradient(135deg,#10b981,#34d399)',
+                brain:      'linear-gradient(135deg,#f59e0b,#fbbf24)',
+                'book-open':'linear-gradient(135deg,#065f46,#047857)',
+                default:    'linear-gradient(135deg,#10b981,#34d399)'
+            };
+            return palettes[icon] || palettes.default;
+        }
+
+        // ---- Filter ----
+        function filterAndRender() {
+            const query = document.getElementById('tool-search').value.toLowerCase().trim();
+            const filtered = allApps.filter(app => {
+                const matchCat = activeCategory === 'all' || (app.categories || []).includes(activeCategory);
+                const matchSearch = !query ||
+                    app.name.toLowerCase().includes(query) ||
+                    app.description.toLowerCase().includes(query);
+                return matchCat && matchSearch;
+            });
+            renderApps(filtered);
+            // Re-observe for animations
+            observeAnimations();
+        }
+
+        document.getElementById('tool-search').addEventListener('input', filterAndRender);
+
+        // ---- Scroll Animations ----
+        function observeAnimations() {
+            const els = document.querySelectorAll('.animate-on-scroll:not(.visible)');
+            const obs = new IntersectionObserver(entries => {
+                entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); }});
+            }, { threshold: 0.1 });
+            els.forEach(el => obs.observe(el));
+        }
+
+        // ---- App Launcher ----
+        function openLauncher(app) {
+            const launcher = document.getElementById('app-launcher');
+            const iframe = document.getElementById('app-iframe');
+            const loading = document.getElementById('launcher-loading');
+            const title = document.getElementById('launcher-title');
+            const newTabLink = document.getElementById('launcher-new-tab');
+
+            title.textContent = app.name;
+            newTabLink.href = app.path;
+            loading.style.display = 'flex';
+            iframe.src = '';
+
+            launcher.classList.add('open');
+            document.body.style.overflow = 'hidden';
+
+            // Small delay then load so animation is visible
+            setTimeout(() => {
+                iframe.src = app.path;
+            }, 100);
+
+            iframe.onload = () => {
+                loading.style.display = 'none';
+                lucide.createIcons();
+            };
+
+            // Log usage
+            logUsage(app.id);
+        }
+
+        function closeLauncher() {
+            const launcher = document.getElementById('app-launcher');
+            const iframe = document.getElementById('app-iframe');
+            launcher.classList.remove('open');
+            document.body.style.overflow = '';
+            setTimeout(() => { iframe.src = ''; }, 300);
+        }
+
+        document.getElementById('launcher-close').addEventListener('click', closeLauncher);
+
+        // Close on Escape
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeLauncher();
+        });
+
+        async function logUsage(appId) {
+            if (!appId) return;
+            await fetch('/api/track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ appId, action: 'launch', userId: currentUser?.id })
+            }).catch(() => {});
+        }
+
+        // ---- User Menu ----
+        const menuBtn = document.getElementById('user-menu-btn');
+        const menu = document.getElementById('user-menu');
+        const overlay = document.getElementById('menu-overlay');
+
+        menuBtn.addEventListener('click', () => {
+            menu.classList.toggle('open');
+            overlay.classList.toggle('open');
+        });
+        overlay.addEventListener('click', () => {
+            menu.classList.remove('open');
+            overlay.classList.remove('open');
+        });
+
+        // Logout
+        document.getElementById('logout-btn').addEventListener('click', async () => {
+            if (supabase) await supabase.auth.signOut();
+            await fetch('/api/session', { method: 'DELETE' });
+            window.location.href = '/';
+        });
+
+        // Mobile nav toggle
+        document.getElementById('nav-toggle').addEventListener('click', () => {
+            document.getElementById('nav-links').classList.toggle('open');
+        });
+
+        // ---- Start ----
+        init();
+    })();
+    </script>
+</body>
+</html>
