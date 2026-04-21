@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ADAMTOOL — Your Solarpunk Digital Ecosystem</title>
-    <meta name="description" content="A sustainable, privacy-first platform to host, manage, and monetize your micro-tools. Built for creators who build with purpose.">
+    <title>ADAMTOOL — A Curated Collection of Precision Tools</title>
+    <meta name="description" content="Discover and use a handcrafted collection of AI-powered and utility tools. Free to browse. Sign in to unlock the full ecosystem.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles/main.css">
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
@@ -12,21 +15,18 @@
 
     <!-- ========== NAVIGATION ========== -->
     <nav class="navbar" id="navbar">
-        <a href="#" class="logo">
+        <a href="/" class="logo">
             <div class="logo-icon">
                 <i data-lucide="sun" size="22" color="white"></i>
             </div>
             ADAMTOOL
         </a>
-        <div class="nav-links">
-            <a href="#how-it-works">How It Works</a>
+        <div class="nav-links" id="nav-links">
             <a href="#tools">Tools</a>
-            <div class="user-profile" id="user-profile">
-                <i data-lucide="leaf" size="20" color="#10b981"></i>
-                <span id="login-status">Guest</span>
-                <i data-lucide="chevron-down" size="16"></i>
-            </div>
-            <a href="#" class="btn-nav-cta">Sign In <i data-lucide="arrow-right" size="16"></i></a>
+            <a href="#how-it-works">How It Works</a>
+            <a href="/login" class="btn-nav-cta" id="nav-sign-in">
+                Sign In <i data-lucide="arrow-right" size="16"></i>
+            </a>
         </div>
         <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation">
             <i data-lucide="menu" size="26" color="var(--green-900)"></i>
@@ -35,40 +35,40 @@
 
     <!-- ========== HERO SECTION ========== -->
     <section class="hero">
-        <!-- Floating UI Cards -->
         <div class="hero-float left">
             <div class="float-icon" style="background: var(--green-100);">
                 <i data-lucide="shield-check" size="20" color="var(--green-600)"></i>
             </div>
-            Code stays private
+            Always private & secure
         </div>
         <div class="hero-float right">
             <div class="float-icon" style="background: rgba(251, 191, 36, 0.15);">
-                <i data-lucide="zap" size="20" color="var(--amber-500)"></i>
+                <i data-lucide="sparkles" size="20" color="var(--amber-500)"></i>
             </div>
-            Instant deployment
+            AI-powered tools
         </div>
 
         <div class="hero-content">
             <div class="hero-badge">
                 <span class="dot"></span>
-                Now in Early Access
+                New tools added regularly
             </div>
             <h1>
-                Build tools.<br>
-                <span class="gradient-text">Not empires.</span>
+                Precision tools,<br>
+                <span class="gradient-text">built with intent.</span>
             </h1>
             <p class="subtitle">
-                A sustainable digital workshop for creators. Host your micro-tools privately, track usage transparently, and get paid fairly — all from one living dashboard.
+                A curated collection of smart, focused tools crafted for real workflows.
+                No bloat, no noise — just tools that do exactly what they say.
             </p>
             <div class="hero-actions">
                 <a href="#tools" class="btn-primary">
-                    Explore Tools
+                    Browse Tools
                     <i data-lucide="arrow-down-right" size="20"></i>
                 </a>
-                <a href="#how-it-works" class="btn-secondary">
-                    See How It Works
-                    <i data-lucide="play-circle" size="20"></i>
+                <a href="/login" class="btn-secondary">
+                    Create Free Account
+                    <i data-lucide="user-plus" size="20"></i>
                 </a>
             </div>
         </div>
@@ -78,16 +78,16 @@
     <div class="metrics-bar">
         <div class="metrics-inner">
             <div class="metric animate-on-scroll">
-                <div class="number" id="metric-tools">3</div>
-                <div class="label">Tools Hosted</div>
+                <div class="number" id="metric-tools">1</div>
+                <div class="label">Live Tools</div>
             </div>
             <div class="metric animate-on-scroll">
                 <div class="number">100%</div>
-                <div class="label">Code Privacy</div>
+                <div class="label">Private & Secure</div>
             </div>
             <div class="metric animate-on-scroll">
-                <div class="number">24/7</div>
-                <div class="label">Uptime on Edge</div>
+                <div class="number">Free</div>
+                <div class="label">To Sign Up</div>
             </div>
         </div>
     </div>
@@ -99,34 +99,34 @@
                 <i data-lucide="compass" size="14"></i>
                 How It Works
             </div>
-            <h2>Three steps to your<br>digital greenhouse</h2>
-            <p>No complex setups. No vendor lock-in. Just drop your tools, customize your space, and let the platform handle the rest.</p>
+            <h2>Start using tools<br>in three steps</h2>
+            <p>No complicated setup. Create an account, find what you need, and get to work immediately.</p>
         </div>
 
         <div class="steps-grid">
             <div class="step-card animate-on-scroll">
                 <span class="step-number">01</span>
                 <div class="step-icon" style="background: linear-gradient(135deg, var(--green-100), var(--green-200));">
-                    <i data-lucide="upload" size="36" color="var(--green-700)"></i>
+                    <i data-lucide="search" size="36" color="var(--green-700)"></i>
                 </div>
-                <h3>Plant your tools</h3>
-                <p>Drop any HTML file, mini-app, or interactive tool into the system. It gets its own secure sandbox instantly.</p>
+                <h3>Browse & Discover</h3>
+                <p>Explore the tool collection. Filter by category, search by keyword, and find exactly what you're looking for.</p>
             </div>
             <div class="step-card animate-on-scroll" style="transition-delay: 0.1s;">
                 <span class="step-number">02</span>
                 <div class="step-icon" style="background: linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.25));">
-                    <i data-lucide="eye" size="36" color="var(--amber-600)"></i>
+                    <i data-lucide="log-in" size="36" color="var(--amber-600)"></i>
                 </div>
-                <h3>Watch them grow</h3>
-                <p>Every interaction is tracked privately. See who uses what, when, and how — all without invasive analytics.</p>
+                <h3>Sign In</h3>
+                <p>Create a free account with your email. Your profile and usage history are saved securely for the long term.</p>
             </div>
             <div class="step-card animate-on-scroll" style="transition-delay: 0.2s;">
                 <span class="step-number">03</span>
                 <div class="step-icon" style="background: linear-gradient(135deg, var(--green-800), var(--green-900));">
-                    <i data-lucide="coins" size="36" color="var(--green-300)"></i>
+                    <i data-lucide="zap" size="36" color="var(--green-300)"></i>
                 </div>
-                <h3>Harvest the value</h3>
-                <p>When a tool earns its keep, gate it. Add logins, usage limits, or subscriptions — your rules, your revenue.</p>
+                <h3>Get to Work</h3>
+                <p>Launch any tool instantly in your browser. No downloads, no installs. Each tool is self-contained and fast.</p>
             </div>
         </div>
     </section>
@@ -136,15 +136,30 @@
         <div class="section-header animate-on-scroll">
             <div class="section-label">
                 <i data-lucide="grid-2x2" size="14"></i>
-                Your Ecosystem
+                The Collection
             </div>
-            <h2>Micro-tools, macro impact</h2>
-            <p>Each tool lives in its own protected environment. Launch them, share them, or keep them entirely to yourself.</p>
+            <h2>Tools for the work<br>that matters</h2>
+            <p>Every tool here was built to solve a specific, real problem. Sign in to launch any tool.</p>
         </div>
 
-        <div class="tools-grid">
-            <!-- Tool 1 -->
-            <div class="tool-card animate-on-scroll">
+        <!-- Search + Category Filter -->
+        <div class="tools-filter animate-on-scroll">
+            <div class="search-bar">
+                <i data-lucide="search" size="18" color="var(--text-muted)"></i>
+                <input type="text" id="tool-search" placeholder="Search tools..." autocomplete="off">
+            </div>
+            <div class="category-pills" id="category-pills">
+                <button class="pill active" data-category="all">All</button>
+                <button class="pill" data-category="ai">AI</button>
+                <button class="pill" data-category="finance">Finance</button>
+                <button class="pill" data-category="utilities">Utilities</button>
+                <button class="pill" data-category="islamic">Islamic</button>
+            </div>
+        </div>
+
+        <div class="tools-grid" id="tools-grid">
+            <!-- Tool 1: Live -->
+            <div class="tool-card animate-on-scroll" data-categories="utilities">
                 <div class="tool-status active">
                     <i data-lucide="circle-dot" size="12"></i> Live
                 </div>
@@ -152,59 +167,67 @@
                     <i data-lucide="calculator" size="28" color="white"></i>
                 </div>
                 <h3>Math Genie</h3>
-                <p>Quick-fire calculations and formula evaluation. Drop in an equation, get instant results with step breakdown.</p>
-                <a href="/apps/math-genie/" class="tool-link">
-                    Launch tool <i data-lucide="arrow-right" size="16"></i>
+                <p>Quick-fire calculations and formula evaluation. Drop in an equation, get instant results.</p>
+                <div class="tool-tags">
+                    <span class="tag">Utilities</span>
+                </div>
+                <a href="/login" class="tool-link" id="launch-math-genie">
+                    Sign in to launch <i data-lucide="arrow-right" size="16"></i>
                 </a>
             </div>
 
-            <!-- Tool 2 -->
-            <div class="tool-card animate-on-scroll" style="transition-delay: 0.1s;">
+            <!-- Tool 2: Coming Soon -->
+            <div class="tool-card animate-on-scroll" data-categories="ai" style="transition-delay: 0.1s;">
                 <div class="tool-status standby">
                     <i data-lucide="clock" size="12"></i> Coming Soon
                 </div>
                 <div class="tool-icon" style="background: linear-gradient(135deg, var(--amber-500), var(--amber-400));">
-                    <i data-lucide="palette" size="28" color="white"></i>
+                    <i data-lucide="brain" size="28" color="white"></i>
                 </div>
-                <h3>Color Forge</h3>
-                <p>Generate harmonious color palettes from images, hex codes, or nature-inspired themes for your next project.</p>
-                <a href="#" class="tool-link" style="opacity: 0.4; pointer-events: none;">
+                <h3>AI Summariser</h3>
+                <p>Paste any text, document, or URL and get a clean, structured summary in seconds.</p>
+                <div class="tool-tags">
+                    <span class="tag">AI</span>
+                </div>
+                <span class="tool-link muted">
                     In development <i data-lucide="loader" size="16"></i>
-                </a>
+                </span>
             </div>
 
-            <!-- Tool 3 -->
-            <div class="tool-card animate-on-scroll" style="transition-delay: 0.2s;">
+            <!-- Tool 3: Coming Soon -->
+            <div class="tool-card animate-on-scroll" data-categories="islamic" style="transition-delay: 0.2s;">
                 <div class="tool-status standby">
                     <i data-lucide="clock" size="12"></i> Coming Soon
                 </div>
                 <div class="tool-icon" style="background: linear-gradient(135deg, var(--green-800), var(--green-700));">
-                    <i data-lucide="file-json" size="28" color="var(--green-300)"></i>
+                    <i data-lucide="book-open" size="28" color="var(--green-300)"></i>
                 </div>
-                <h3>Data Weaver</h3>
-                <p>Transform, validate, and convert data between JSON, CSV, and XML with a visual drag-and-drop interface.</p>
-                <a href="#" class="tool-link" style="opacity: 0.4; pointer-events: none;">
+                <h3>Islamic Advisor</h3>
+                <p>Scholarly AI guidance grounded in Quran and Hadith. Authenticated by tradition, verified by intelligence.</p>
+                <div class="tool-tags">
+                    <span class="tag">Islamic</span>
+                    <span class="tag">AI</span>
+                </div>
+                <span class="tool-link muted">
                     In development <i data-lucide="loader" size="16"></i>
-                </a>
+                </span>
             </div>
+        </div>
 
-            <!-- Add Tool Card -->
-            <div class="tool-card tool-card-add animate-on-scroll" style="transition-delay: 0.3s;">
-                <div class="add-icon">
-                    <i data-lucide="plus" size="28" color="var(--green-500)"></i>
-                </div>
-                <span>Cultivate New Tool</span>
-            </div>
+        <!-- No results message -->
+        <div class="no-results" id="no-results" style="display:none;">
+            <i data-lucide="search-x" size="40" color="var(--text-muted)"></i>
+            <p>No tools match your search.</p>
         </div>
     </section>
 
     <!-- ========== CTA BANNER ========== -->
     <section class="cta-section">
         <div class="cta-banner animate-on-scroll">
-            <h2>Ready to grow your<br>digital garden?</h2>
-            <p>Start hosting your tools for free. Scale when you're ready. No credit card, no contracts, no nonsense.</p>
-            <a href="#tools" class="btn-cta">
-                Get Started Free
+            <h2>Your account, your history.<br>Always safe.</h2>
+            <p>Sign up once. Your usage history, preferences, and access persist across any updates to the platform. Your data is never lost.</p>
+            <a href="/login" class="btn-cta">
+                Create Free Account
                 <i data-lucide="arrow-right" size="20"></i>
             </a>
         </div>
@@ -214,63 +237,38 @@
     <footer class="footer">
         <div class="footer-inner">
             <div class="footer-brand">
-                <i data-lucide="sun" size="20" color="var(--green-600)" fill="var(--amber-400)"></i>
+                <i data-lucide="sun" size="20" color="var(--green-600)"></i>
                 ADAMTOOL
             </div>
             <div class="footer-links">
                 <a href="#">Privacy</a>
                 <a href="#">Terms</a>
-                <a href="#">GitHub</a>
+                <a href="/login">Sign In</a>
             </div>
-            <div class="footer-copy">&copy; 2026 ADAMTOOL. Built with purpose.</div>
+            <div class="footer-copy">&copy; 2026 ADAMTOOL. All rights reserved.</div>
         </div>
     </footer>
 
     <!-- ========== SCRIPTS ========== -->
     <script>
-        // Initialize Lucide icons
+        // Init Lucide icons
         lucide.createIcons();
 
-        // --- Auth Simulation ---
-        const userProfile = document.getElementById('user-profile');
-        const loginStatus = document.getElementById('login-status');
-
-        function updateAuthUI() {
-            const hasSession = document.cookie.includes('adam_tool_session=true');
-            if (hasSession) {
-                loginStatus.innerText = 'Authenticated';
-                userProfile.style.borderColor = 'var(--accent-primary)';
-            } else {
-                loginStatus.innerText = 'Guest (Click to Login)';
-                userProfile.style.borderColor = 'var(--border-soft)';
-            }
-        }
-
-        userProfile.addEventListener('click', () => {
-            const hasSession = document.cookie.includes('adam_tool_session=true');
-            if (hasSession) {
-                // Logout
-                document.cookie = "adam_tool_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-                alert('🌿 Session cleared. You are back to Guest mode.');
-            } else {
-                // Login
-                document.cookie = "adam_tool_session=true; path=/; max-age=3600";
-                alert('✨ Solarpunk session created. You can now access protected tools!');
-            }
-            updateAuthUI();
-        });
-
-        updateAuthUI();
-
-        // Navbar scroll effect
-// ... rest of the script ...
+        // Navbar scroll shadow
         const navbar = document.getElementById('navbar');
         window.addEventListener('scroll', () => {
             navbar.classList.toggle('scrolled', window.scrollY > 20);
         });
 
-        // Scroll-triggered animations (IntersectionObserver)
-        const animatedElements = document.querySelectorAll('.animate-on-scroll');
+        // Mobile nav toggle
+        const navToggle = document.getElementById('nav-toggle');
+        const navLinks = document.getElementById('nav-links');
+        navToggle.addEventListener('click', () => {
+            navLinks.classList.toggle('open');
+        });
+
+        // Scroll-triggered fade-in animations
+        const animatedEls = document.querySelectorAll('.animate-on-scroll');
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
@@ -278,36 +276,48 @@
                     observer.unobserve(entry.target);
                 }
             });
-        }, { threshold: 0.15, rootMargin: '0px 0px -50px 0px' });
+        }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+        animatedEls.forEach(el => observer.observe(el));
 
-        animatedElements.forEach(el => observer.observe(el));
+        // Tool Search
+        const searchInput = document.getElementById('tool-search');
+        const toolCards = document.querySelectorAll('.tool-card[data-categories]');
+        const noResults = document.getElementById('no-results');
 
-        // Animate metric numbers on scroll
-        function animateNumber(el, target, suffix = '') {
-            let current = 0;
-            const increment = target / 40;
-            const timer = setInterval(() => {
-                current += increment;
-                if (current >= target) {
-                    current = target;
-                    clearInterval(timer);
-                }
-                el.textContent = Math.floor(current) + suffix;
-            }, 30);
-        }
+        function filterTools() {
+            const query = searchInput.value.toLowerCase().trim();
+            const activeCategory = document.querySelector('.pill.active').dataset.category;
+            let visible = 0;
 
-        const metricsObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const toolsMetric = document.getElementById('metric-tools');
-                    if (toolsMetric) animateNumber(toolsMetric, 3, '');
-                    metricsObserver.unobserve(entry.target);
+            toolCards.forEach(card => {
+                const name = card.querySelector('h3').textContent.toLowerCase();
+                const desc = card.querySelector('p').textContent.toLowerCase();
+                const cats = card.dataset.categories || '';
+                const matchesSearch = !query || name.includes(query) || desc.includes(query);
+                const matchesCat = activeCategory === 'all' || cats.includes(activeCategory);
+
+                if (matchesSearch && matchesCat) {
+                    card.style.display = '';
+                    visible++;
+                } else {
+                    card.style.display = 'none';
                 }
             });
-        }, { threshold: 0.5 });
 
-        const metricsBar = document.querySelector('.metrics-bar');
-        if (metricsBar) metricsObserver.observe(metricsBar);
+            noResults.style.display = visible === 0 ? 'flex' : 'none';
+        }
+
+        searchInput.addEventListener('input', filterTools);
+
+        // Category Pills
+        const pills = document.querySelectorAll('.pill');
+        pills.forEach(pill => {
+            pill.addEventListener('click', () => {
+                pills.forEach(p => p.classList.remove('active'));
+                pill.classList.add('active');
+                filterTools();
+            });
+        });
     </script>
 </body>
 </html>
