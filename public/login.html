@@ -117,100 +117,103 @@
     </div>
 
     <script>
-        lucide.createIcons();
+        (async () => {
+            lucide.createIcons();
 
-        let supabase = null;
-        const redirectTo = new URLSearchParams(window.location.search).get('redirect') || '/tools';
+            let supabaseClient = null;
+            const redirectTo = new URLSearchParams(window.location.search).get('redirect') || '/tools';
 
-        // Load Supabase config from server
-        async function initSupabase() {
-            try {
-                const res = await fetch('/api/config');
-                const { supabaseUrl, supabaseAnonKey } = await res.json();
-                if (!supabaseUrl || !supabaseAnonKey) {
-                    console.warn('Supabase not configured yet.');
+            // Load Supabase config from server
+            async function initSupabase() {
+                try {
+                    const res = await fetch('/api/config');
+                    const { supabaseUrl, supabaseAnonKey } = await res.json();
+                    if (!supabaseUrl || !supabaseAnonKey) {
+                        console.warn('Supabase not configured yet.');
+                        return;
+                    }
+                    // Use the global 'supabase' object from the CDN to create the client
+                    supabaseClient = window.supabase.createClient(supabaseUrl, supabaseAnonKey, {
+                        auth: {
+                            redirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`
+                        }
+                    });
+                } catch (e) {
+                    console.error('Config load error:', e);
+                }
+            }
+
+            function showError(msg) {
+                const el = document.getElementById('error-msg');
+                el.textContent = msg;
+                el.style.display = 'block';
+            }
+
+            function hideError() {
+                document.getElementById('error-msg').style.display = 'none';
+            }
+
+            function setLoading(loading) {
+                const btn = document.getElementById('submit-btn');
+                const text = document.getElementById('btn-text');
+                const icon = document.getElementById('btn-icon');
+                const spinner = document.getElementById('btn-spinner');
+                btn.disabled = loading;
+                text.textContent = loading ? 'Sending...' : 'Send Magic Link';
+                icon.style.display = loading ? 'none' : '';
+                spinner.style.display = loading ? 'inline-block' : 'none';
+            }
+
+            document.getElementById('login-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                hideError();
+                const email = document.getElementById('email-input').value.trim();
+                if (!email) return;
+
+                if (!supabaseClient) {
+                    showError('Authentication service is not configured yet. Please try again later.');
                     return;
                 }
-                supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey, {
-                    auth: {
-                        redirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`
+
+                setLoading(true);
+                const { error } = await supabaseClient.auth.signInWithOtp({
+                    email,
+                    options: {
+                        emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`
                     }
                 });
-            } catch (e) {
-                console.error('Config load error:', e);
-            }
-        }
+                setLoading(false);
 
-        function showError(msg) {
-            const el = document.getElementById('error-msg');
-            el.textContent = msg;
-            el.style.display = 'block';
-        }
-
-        function hideError() {
-            document.getElementById('error-msg').style.display = 'none';
-        }
-
-        function setLoading(loading) {
-            const btn = document.getElementById('submit-btn');
-            const text = document.getElementById('btn-text');
-            const icon = document.getElementById('btn-icon');
-            const spinner = document.getElementById('btn-spinner');
-            btn.disabled = loading;
-            text.textContent = loading ? 'Sending...' : 'Send Magic Link';
-            icon.style.display = loading ? 'none' : '';
-            spinner.style.display = loading ? 'inline-block' : 'none';
-        }
-
-        document.getElementById('login-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            hideError();
-            const email = document.getElementById('email-input').value.trim();
-            if (!email) return;
-
-            if (!supabase) {
-                showError('Authentication service is not configured yet. Please try again later.');
-                return;
-            }
-
-            setLoading(true);
-            const { error } = await supabase.auth.signInWithOtp({
-                email,
-                options: {
-                    emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`
+                if (error) {
+                    showError(error.message || 'Something went wrong. Please try again.');
+                    return;
                 }
+
+                // Show success state
+                document.getElementById('state-form').style.display = 'none';
+                document.getElementById('state-sent').style.display = 'block';
+                document.getElementById('sent-email').textContent = email;
+
+                // Store email for resend
+                document.getElementById('resend-btn').dataset.email = email;
             });
-            setLoading(false);
 
-            if (error) {
-                showError(error.message || 'Something went wrong. Please try again.');
-                return;
-            }
+            // Resend link
+            document.getElementById('resend-btn').addEventListener('click', async (e) => {
+                const email = e.target.dataset.email;
+                if (!email || !supabaseClient) return;
+                e.target.textContent = 'Sending...';
+                e.target.disabled = true;
+                await supabaseClient.auth.signInWithOtp({ email });
+                e.target.textContent = 'Sent!';
+                setTimeout(() => {
+                    e.target.textContent = 'Resend link';
+                    e.target.disabled = false;
+                }, 5000);
+            });
 
-            // Show success state
-            document.getElementById('state-form').style.display = 'none';
-            document.getElementById('state-sent').style.display = 'block';
-            document.getElementById('sent-email').textContent = email;
-
-            // Store email for resend
-            document.getElementById('resend-btn').dataset.email = email;
-        });
-
-        // Resend link
-        document.getElementById('resend-btn').addEventListener('click', async (e) => {
-            const email = e.target.dataset.email;
-            if (!email || !supabase) return;
-            e.target.textContent = 'Sending...';
-            e.target.disabled = true;
-            await supabase.auth.signInWithOtp({ email });
-            e.target.textContent = 'Sent!';
-            setTimeout(() => {
-                e.target.textContent = 'Resend link';
-                e.target.disabled = false;
-            }, 5000);
-        });
-
-        initSupabase();
+            await initSupabase();
+        })();
     </script>
 </body>
 </html>

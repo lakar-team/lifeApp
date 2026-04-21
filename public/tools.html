@@ -133,7 +133,7 @@
         lucide.createIcons();
 
         // ---- State ----
-        let supabase = null;
+        let supabaseClient = null;
         let currentUser = null;
         let allApps = [];
         let allCategories = [];
@@ -145,7 +145,7 @@
             try {
                 const cfg = await fetch('/api/config').then(r => r.json());
                 if (cfg.supabaseUrl && cfg.supabaseAnonKey) {
-                    supabase = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+                    supabaseClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
                 }
             } catch (e) {
                 console.error('Config error:', e);
@@ -156,8 +156,8 @@
 
             if (!me.authenticated) {
                 // No valid session — check Supabase client-side as fallback
-                if (supabase) {
-                    const { data: { session } } = await supabase.auth.getSession();
+                if (supabaseClient) {
+                    const { data: { session } } = await supabaseClient.auth.getSession();
                     if (!session) {
                         window.location.href = '/login?redirect=/tools';
                         return;
@@ -172,8 +172,8 @@
             }
 
             // Refresh session cookie whenever Supabase rotates the token
-            if (supabase) {
-                supabase.auth.onAuthStateChange(async (_event, session) => {
+            if (supabaseClient) {
+                supabaseClient.auth.onAuthStateChange(async (_event, session) => {
                     if (session?.access_token) {
                         await fetch('/api/session', {
                             method: 'POST',
@@ -208,8 +208,8 @@
 
         // ---- Load Data from Supabase ----
         async function loadData() {
-            const ANON_KEY = supabase ? supabase.supabaseKey : '';
-            const BASE = supabase ? supabase.supabaseUrl + '/rest/v1' : '';
+            const ANON_KEY = supabaseClient ? supabaseClient.supabaseKey : '';
+            const BASE = supabaseClient ? supabaseClient.supabaseUrl + '/rest/v1' : '';
 
             if (!BASE) {
                 // Fallback: use hardcoded data from seed
@@ -442,7 +442,7 @@
 
         // Logout
         document.getElementById('logout-btn').addEventListener('click', async () => {
-            if (supabase) await supabase.auth.signOut();
+            if (supabaseClient) await supabaseClient.auth.signOut();
             await fetch('/api/session', { method: 'DELETE' });
             window.location.href = '/';
         });
