@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creator Dashboard — ADAMTOOL</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles/main.css">
+    <link rel="stylesheet" href="/styles/tools.css">
+    <link rel="stylesheet" href="/styles/creator.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+
+    <!-- ========== NAVBAR ========== -->
+    <nav class="navbar scrolled" id="navbar">
+        <a href="/" class="logo">
+            <div class="logo-icon">
+                <i data-lucide="sun" size="22" color="white"></i>
+            </div>
+            ADAMTOOL
+        </a>
+        <div class="nav-links">
+            <a href="/tools">Tools</a>
+            <a href="/creator" class="nav-active">
+                <i data-lucide="layout-dashboard" size="14"></i> Creator
+            </a>
+            <div class="user-chip" id="user-chip">
+                <div class="user-avatar" id="user-avatar">?</div>
+                <span id="user-email">Loading...</span>
+                <button class="user-menu-btn" id="user-menu-btn">
+                    <i data-lucide="chevron-down" size="16"></i>
+                </button>
+            </div>
+        </div>
+        <button class="nav-toggle" id="nav-toggle">
+            <i data-lucide="menu" size="26" color="var(--green-900)"></i>
+        </button>
+    </nav>
+
+    <!-- User dropdown -->
+    <div class="user-menu" id="user-menu">
+        <div class="user-menu-header">
+            <div class="user-avatar-lg" id="user-avatar-lg">?</div>
+            <div>
+                <div class="user-menu-email" id="user-menu-email">—</div>
+                <div class="user-menu-role">🌿 Creator</div>
+            </div>
+        </div>
+        <div class="user-menu-divider"></div>
+        <a href="/tools" class="user-menu-item"><i data-lucide="grid-2x2" size="16"></i> Tool Dashboard</a>
+        <div class="user-menu-divider"></div>
+        <button class="user-menu-item danger" id="logout-btn">
+            <i data-lucide="log-out" size="16"></i> Sign Out
+        </button>
+    </div>
+    <div class="menu-overlay" id="menu-overlay"></div>
+
+    <!-- ========== MAIN ========== -->
+    <main class="creator-main">
+
+        <!-- Header -->
+        <div class="creator-header">
+            <div>
+                <h1>Creator Dashboard</h1>
+                <p>Manage your tools, track usage, and deploy new apps.</p>
+            </div>
+            <button class="btn-primary" id="add-app-btn">
+                <i data-lucide="plus" size="18"></i> Add New App
+            </button>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="stats-row" id="stats-row">
+            <div class="stat-card">
+                <div class="stat-icon" style="background:linear-gradient(135deg,#10b981,#34d399)">
+                    <i data-lucide="grid-2x2" size="20" color="white"></i>
+                </div>
+                <div>
+                    <div class="stat-value" id="stat-apps">—</div>
+                    <div class="stat-label">Total Apps</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background:linear-gradient(135deg,#059669,#10b981)">
+                    <i data-lucide="circle-dot" size="20" color="white"></i>
+                </div>
+                <div>
+                    <div class="stat-value" id="stat-live">—</div>
+                    <div class="stat-label">Live</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background:linear-gradient(135deg,#f59e0b,#fbbf24)">
+                    <i data-lucide="users" size="20" color="white"></i>
+                </div>
+                <div>
+                    <div class="stat-value" id="stat-users">—</div>
+                    <div class="stat-label">Registered Users</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background:linear-gradient(135deg,#047857,#059669)">
+                    <i data-lucide="bar-chart-2" size="20" color="white"></i>
+                </div>
+                <div>
+                    <div class="stat-value" id="stat-launches">—</div>
+                    <div class="stat-label">Total Launches</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- App Management Table -->
+        <div class="creator-section">
+            <div class="section-header">
+                <h2>App Catalog</h2>
+                <span class="section-badge" id="app-count-badge">Loading...</span>
+            </div>
+            <div class="app-table-wrap">
+                <table class="app-table" id="app-table">
+                    <thead>
+                        <tr>
+                            <th>App</th>
+                            <th>Path</th>
+                            <th>Category</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="app-tbody">
+                        <tr><td colspan="5" class="table-loading">Loading apps...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Usage Log -->
+        <div class="creator-section">
+            <div class="section-header">
+                <h2>Recent Usage</h2>
+                <span class="section-badge" id="log-count-badge">—</span>
+            </div>
+            <div class="app-table-wrap">
+                <table class="app-table">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>App</th>
+                            <th>Action</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="log-tbody">
+                        <tr><td colspan="4" class="table-loading">Loading logs...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Upload Instructions -->
+        <div class="creator-section">
+            <div class="section-header">
+                <h2>How to Upload an App</h2>
+            </div>
+            <div class="upload-steps">
+                <div class="upload-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h3>Add your app files</h3>
+                        <p>Create a folder in your project at <code>public/apps/your-app-name/</code> and place your <code>index.html</code> (and any other files) inside it.</p>
+                        <pre><code>G:\My Drive\AI Platforms\lifeApp\
+└── public\
+    └── apps\
+        └── your-app-name\
+            └── index.html</code></pre>
+                    </div>
+                </div>
+                <div class="upload-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h3>Register it in the catalog</h3>
+                        <p>Click <strong>"Add New App"</strong> above and fill in the details. Set the <strong>Path</strong> to <code>/apps/your-app-name/</code>.</p>
+                    </div>
+                </div>
+                <div class="upload-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h3>Deploy via Git</h3>
+                        <p>Open a terminal in your project folder and run:</p>
+                        <pre><code>git add .
+git commit -m "Add: your-app-name"
+git push origin main</code></pre>
+                        <p>Cloudflare Pages will auto-deploy in ~60 seconds. Your app is live and protected by login auth.</p>
+                    </div>
+                </div>
+                <div class="upload-step">
+                    <div class="step-num">4</div>
+                    <div class="step-content">
+                        <h3>Apps needing AI API calls</h3>
+                        <p>Create a Cloudflare Function at <code>functions/apps/your-app-name/api.js</code>. This keeps your API keys hidden from users — all calls go through the server, never exposed in the browser.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ========== ADD/EDIT APP MODAL ========== -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal" id="app-modal">
+            <div class="modal-header">
+                <h3 id="modal-title">Add New App</h3>
+                <button class="modal-close" id="modal-close"><i data-lucide="x" size="20"></i></button>
+            </div>
+            <form id="app-form" autocomplete="off">
+                <input type="hidden" id="form-app-id">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>App Name *</label>
+                        <input type="text" id="form-name" placeholder="e.g. Math Genie" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Slug *</label>
+                        <input type="text" id="form-slug" placeholder="e.g. math-genie" required>
+                        <small>Used in the URL — lowercase, hyphens only</small>
+                    </div>
+                    <div class="form-group full-width">
+                        <label>Description *</label>
+                        <textarea id="form-description" placeholder="One-line description of what this tool does..." required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Path *</label>
+                        <input type="text" id="form-path" placeholder="/apps/math-genie/" required>
+                        <small>Relative URL where the app lives</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Icon</label>
+                        <input type="text" id="form-icon" placeholder="calculator" value="wrench">
+                        <small>Any <a href="https://lucide.dev/icons/" target="_blank">Lucide icon</a> name</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="form-status">
+                            <option value="live">Live</option>
+                            <option value="coming_soon">Coming Soon</option>
+                            <option value="hidden">Hidden</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Sort Order</label>
+                        <input type="number" id="form-sort" placeholder="0" value="0">
+                    </div>
+                </div>
+                <div id="form-error" class="form-error" style="display:none;"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" id="modal-cancel">Cancel</button>
+                    <button type="submit" class="btn-primary" id="form-submit">
+                        <span id="form-btn-text">Save App</span>
+                        <span class="spinner" id="form-spinner" style="display:none;"></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========== SCRIPT ========== -->
+    <script>
+    (() => {
+        lucide.createIcons();
+
+        let supabaseClient = null;
+        let supabaseUrl = '';
+        let supabaseAnonKey = '';
+        let currentUser = null;
+        let allApps = [];
+        let editingAppId = null;
+
+        // ---- Init ----
+        async function init() {
+            try {
+                const cfg = await fetch('/api/config').then(r => r.json());
+                supabaseUrl = cfg.supabaseUrl || '';
+                supabaseAnonKey = cfg.supabaseAnonKey || '';
+                if (supabaseUrl && supabaseAnonKey) {
+                    supabaseClient = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+                }
+            } catch(e) { console.error('Config error:', e); }
+
+            // Auth check — must be creator
+            const me = await fetch('/api/me').then(r => r.json()).catch(() => ({ authenticated: false }));
+            if (!me.authenticated || !me.isCreator) {
+                window.location.href = me.authenticated ? '/tools' : '/login?redirect=/creator';
+                return;
+            }
+            currentUser = me;
+
+            renderUserUI();
+            await loadAll();
+        }
+
+        function renderUserUI() {
+            const init = (currentUser.email || '?').charAt(0).toUpperCase();
+            document.getElementById('user-avatar').textContent = init;
+            document.getElementById('user-avatar-lg').textContent = init;
+            document.getElementById('user-email').textContent = currentUser.email;
+            document.getElementById('user-menu-email').textContent = currentUser.email;
+        }
+
+        // ---- Load Everything ----
+        async function loadAll() {
+            await Promise.all([loadApps(), loadStats(), loadLogs()]);
+        }
+
+        async function loadApps() {
+            if (!supabaseUrl) return;
+            const headers = { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${supabaseAnonKey}` };
+            try {
+                const apps = await fetch(
+                    `${supabaseUrl}/rest/v1/apps?select=id,name,slug,path,icon,status,sort_order,app_category_map(app_categories(name,slug))&order=sort_order.asc,name.asc`,
+                    { headers }
+                ).then(r => r.json());
+                allApps = Array.isArray(apps) ? apps : [];
+                renderAppsTable(allApps);
+                document.getElementById('stat-apps').textContent = allApps.length;
+                document.getElementById('stat-live').textContent = allApps.filter(a => a.status === 'live').length;
+                document.getElementById('app-count-badge').textContent = `${allApps.length} apps`;
+            } catch(e) {
+                console.error('Apps load error:', e);
+                renderAppsTable([]);
+            }
+        }
+
+        async function loadStats() {
+            if (!supabaseUrl) return;
+            const headers = { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${supabaseAnonKey}`, 'Prefer': 'count=exact' };
+            try {
+                const usersRes = await fetch(`${supabaseUrl}/rest/v1/user_profiles?select=id`, { headers });
+                const userCount = usersRes.headers.get('content-range')?.split('/')[1] || '—';
+                document.getElementById('stat-users').textContent = userCount;
+
+                const logsRes = await fetch(`${supabaseUrl}/rest/v1/usage_logs?select=id`, { headers });
+                const logCount = logsRes.headers.get('content-range')?.split('/')[1] || '—';
+                document.getElementById('stat-launches').textContent = logCount;
+            } catch(e) { console.error('Stats error:', e); }
+        }
+
+        async function loadLogs() {
+            if (!supabaseUrl) return;
+            const headers = { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${supabaseAnonKey}` };
+            try {
+                const logs = await fetch(
+                    `${supabaseUrl}/rest/v1/usage_logs?select=user_id,app_id,action,created_at,apps(name),user_profiles(email)&order=created_at.desc&limit=20`,
+                    { headers }
+                ).then(r => r.json());
+                renderLogsTable(Array.isArray(logs) ? logs : []);
+                document.getElementById('log-count-badge').textContent = `Last ${Math.min(Array.isArray(logs) ? logs.length : 0, 20)} events`;
+            } catch(e) { console.error('Logs error:', e); }
+        }
+
+        // ---- Render Apps Table ----
+        function renderAppsTable(apps) {
+            const tbody = document.getElementById('app-tbody');
+            if (!apps.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="table-empty">No apps yet. Click "Add New App" to get started.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = apps.map(app => {
+                const cats = (app.app_category_map || []).map(m => m.app_categories?.name).filter(Boolean).join(', ') || '—';
+                const statusClass = app.status === 'live' ? 'badge-live' : app.status === 'coming_soon' ? 'badge-soon' : 'badge-hidden';
+                const statusLabel = app.status === 'live' ? 'Live' : app.status === 'coming_soon' ? 'Coming Soon' : 'Hidden';
+                return `
+                    <tr>
+                        <td>
+                            <div class="app-name-cell">
+                                <div class="app-icon-sm"><i data-lucide="${app.icon || 'wrench'}" size="16" color="var(--green-700)"></i></div>
+                                <strong>${app.name}</strong>
+                            </div>
+                        </td>
+                        <td><code class="path-code">${app.path}</code></td>
+                        <td>${cats}</td>
+                        <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+                        <td>
+                            <div class="action-btns">
+                                <button class="action-btn edit-btn" data-id="${app.id}" title="Edit">
+                                    <i data-lucide="pencil" size="14"></i>
+                                </button>
+                                <button class="action-btn delete-btn" data-id="${app.id}" data-name="${app.name}" title="Delete">
+                                    <i data-lucide="trash-2" size="14"></i>
+                                </button>
+                                <a href="${app.path}" target="_blank" class="action-btn" title="Preview">
+                                    <i data-lucide="external-link" size="14"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            lucide.createIcons();
+
+            // Wire up edit/delete buttons
+            tbody.querySelectorAll('.edit-btn').forEach(btn => {
+                btn.addEventListener('click', () => openEditModal(btn.dataset.id));
+            });
+            tbody.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', () => deleteApp(btn.dataset.id, btn.dataset.name));
+            });
+        }
+
+        // ---- Render Logs Table ----
+        function renderLogsTable(logs) {
+            const tbody = document.getElementById('log-tbody');
+            if (!logs.length) {
+                tbody.innerHTML = '<tr><td colspan="4" class="table-empty">No usage events yet. Launches will appear here.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = logs.map(log => {
+                const email = log.user_profiles?.email || log.user_id?.slice(0,8) + '...' || '—';
+                const appName = log.apps?.name || log.app_id || '—';
+                const time = new Date(log.created_at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' });
+                return `<tr>
+                    <td><span class="user-email-cell">${email}</span></td>
+                    <td>${appName}</td>
+                    <td><span class="action-pill">${log.action || 'launch'}</span></td>
+                    <td class="time-cell">${time}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        // ---- Modal ----
+        function openAddModal() {
+            editingAppId = null;
+            document.getElementById('modal-title').textContent = 'Add New App';
+            document.getElementById('form-btn-text').textContent = 'Save App';
+            document.getElementById('app-form').reset();
+            document.getElementById('form-icon').value = 'wrench';
+            document.getElementById('form-status').value = 'live';
+            document.getElementById('form-sort').value = '0';
+            document.getElementById('form-app-id').value = '';
+            document.getElementById('form-error').style.display = 'none';
+            showModal();
+        }
+
+        function openEditModal(appId) {
+            const app = allApps.find(a => a.id === appId);
+            if (!app) return;
+            editingAppId = appId;
+            document.getElementById('modal-title').textContent = 'Edit App';
+            document.getElementById('form-btn-text').textContent = 'Update App';
+            document.getElementById('form-app-id').value = app.id;
+            document.getElementById('form-name').value = app.name || '';
+            document.getElementById('form-slug').value = app.slug || '';
+            document.getElementById('form-description').value = app.description || '';
+            document.getElementById('form-path').value = app.path || '';
+            document.getElementById('form-icon').value = app.icon || 'wrench';
+            document.getElementById('form-status').value = app.status || 'live';
+            document.getElementById('form-sort').value = app.sort_order || 0;
+            document.getElementById('form-error').style.display = 'none';
+            showModal();
+        }
+
+        function showModal() {
+            document.getElementById('modal-overlay').classList.add('open');
+            document.body.style.overflow = 'hidden';
+            setTimeout(() => document.getElementById('form-name').focus(), 100);
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').classList.remove('open');
+            document.body.style.overflow = '';
+        }
+
+        // ---- Auto slug from name ----
+        document.getElementById('form-name').addEventListener('input', (e) => {
+            if (!editingAppId) {
+                document.getElementById('form-slug').value = e.target.value
+                    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            }
+        });
+
+        document.getElementById('form-slug').addEventListener('input', (e) => {
+            const slug = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+            e.target.value = slug;
+            if (!document.getElementById('form-path').dataset.manual) {
+                document.getElementById('form-path').value = `/apps/${slug}/`;
+            }
+        });
+
+        document.getElementById('form-path').addEventListener('input', (e) => {
+            e.target.dataset.manual = 'true';
+        });
+
+        // ---- Form Submit ----
+        document.getElementById('app-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const errEl = document.getElementById('form-error');
+            errEl.style.display = 'none';
+
+            const body = {
+                name: document.getElementById('form-name').value.trim(),
+                slug: document.getElementById('form-slug').value.trim(),
+                description: document.getElementById('form-description').value.trim(),
+                path: document.getElementById('form-path').value.trim(),
+                icon: document.getElementById('form-icon').value.trim() || 'wrench',
+                status: document.getElementById('form-status').value,
+                sort_order: parseInt(document.getElementById('form-sort').value) || 0
+            };
+
+            const submitBtn = document.getElementById('form-submit');
+            const btnText = document.getElementById('form-btn-text');
+            const spinner = document.getElementById('form-spinner');
+            submitBtn.disabled = true;
+            btnText.style.display = 'none';
+            spinner.style.display = 'inline-block';
+
+            try {
+                const headers = {
+                    'apikey': supabaseAnonKey,
+                    'Authorization': `Bearer ${supabaseAnonKey}`,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=minimal'
+                };
+
+                let res;
+                if (editingAppId) {
+                    res = await fetch(`${supabaseUrl}/rest/v1/apps?id=eq.${editingAppId}`, {
+                        method: 'PATCH', headers, body: JSON.stringify(body)
+                    });
+                } else {
+                    res = await fetch(`${supabaseUrl}/rest/v1/apps`, {
+                        method: 'POST', headers, body: JSON.stringify(body)
+                    });
+                }
+
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.message || err.details || 'Save failed');
+                }
+
+                closeModal();
+                await loadApps();
+            } catch(err) {
+                errEl.textContent = err.message;
+                errEl.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                btnText.style.display = '';
+                spinner.style.display = 'none';
+            }
+        });
+
+        // ---- Delete App ----
+        async function deleteApp(appId, appName) {
+            if (!confirm(`Delete "${appName}"? This cannot be undone.`)) return;
+            const headers = {
+                'apikey': supabaseAnonKey,
+                'Authorization': `Bearer ${supabaseAnonKey}`
+            };
+            try {
+                await fetch(`${supabaseUrl}/rest/v1/apps?id=eq.${appId}`, { method: 'DELETE', headers });
+                await loadApps();
+            } catch(e) {
+                alert('Delete failed: ' + e.message);
+            }
+        }
+
+        // ---- Event wiring ----
+        document.getElementById('add-app-btn').addEventListener('click', openAddModal);
+        document.getElementById('modal-close').addEventListener('click', closeModal);
+        document.getElementById('modal-cancel').addEventListener('click', closeModal);
+        document.getElementById('modal-overlay').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('modal-overlay')) closeModal();
+        });
+
+        // User menu
+        document.getElementById('user-menu-btn').addEventListener('click', () => {
+            document.getElementById('user-menu').classList.toggle('open');
+            document.getElementById('menu-overlay').classList.toggle('open');
+        });
+        document.getElementById('menu-overlay').addEventListener('click', () => {
+            document.getElementById('user-menu').classList.remove('open');
+            document.getElementById('menu-overlay').classList.remove('open');
+        });
+
+        // Logout
+        document.getElementById('logout-btn').addEventListener('click', async () => {
+            if (supabaseClient) await supabaseClient.auth.signOut();
+            await fetch('/api/session', { method: 'DELETE' });
+            window.location.href = '/';
+        });
+
+        // Mobile nav
+        document.getElementById('nav-toggle').addEventListener('click', () => {
+            document.querySelector('.nav-links').classList.toggle('open');
+        });
+
+        init();
+    })();
+    </script>
+</body>
+</html>
