@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In — ADAMTOOL</title>
+    <meta name="description" content="Sign in to access your ADAMTOOL account.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles/auth.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+
+    <div class="auth-layout">
+        <!-- Left Panel: Branding -->
+        <div class="auth-brand">
+            <a href="/" class="auth-logo">
+                <div class="logo-icon">
+                    <i data-lucide="sun" size="22" color="white"></i>
+                </div>
+                ADAMTOOL
+            </a>
+
+            <div class="auth-brand-content">
+                <h2>Welcome back.</h2>
+                <p>Sign in to access your curated collection of precision tools.</p>
+                <div class="auth-perks">
+                    <div class="perk">
+                        <div class="perk-icon">
+                            <i data-lucide="shield-check" size="18" color="var(--green-600)"></i>
+                        </div>
+                        Your usage history is saved permanently
+                    </div>
+                    <div class="perk">
+                        <div class="perk-icon">
+                            <i data-lucide="zap" size="18" color="var(--green-600)"></i>
+                        </div>
+                        Launch any tool instantly after sign-in
+                    </div>
+                    <div class="perk">
+                        <div class="perk-icon">
+                            <i data-lucide="lock" size="18" color="var(--green-600)"></i>
+                        </div>
+                        Private & secure — no passwords to remember
+                    </div>
+                </div>
+            </div>
+
+            <!-- Decorative blobs -->
+            <div class="brand-blob brand-blob-1"></div>
+            <div class="brand-blob brand-blob-2"></div>
+        </div>
+
+        <!-- Right Panel: Form -->
+        <div class="auth-form-panel">
+            <div class="auth-card">
+
+                <!-- State: Initial form -->
+                <div id="state-form">
+                    <div class="auth-card-header">
+                        <h1>Sign In</h1>
+                        <p>Enter your email — we'll send you a magic link. No password needed.</p>
+                    </div>
+
+                    <form id="login-form" autocomplete="on">
+                        <div class="form-group">
+                            <label for="email-input">Email address</label>
+                            <div class="input-wrapper">
+                                <i data-lucide="mail" size="18" color="var(--text-muted)"></i>
+                                <input
+                                    type="email"
+                                    id="email-input"
+                                    name="email"
+                                    placeholder="you@example.com"
+                                    required
+                                    autocomplete="email"
+                                >
+                            </div>
+                        </div>
+
+                        <div id="error-msg" class="error-msg" role="alert" style="display:none;"></div>
+
+                        <button type="submit" class="btn-submit" id="submit-btn">
+                            <span id="btn-text">Send Magic Link</span>
+                            <i data-lucide="arrow-right" size="18" id="btn-icon"></i>
+                            <span id="btn-spinner" class="spinner" style="display:none;"></span>
+                        </button>
+                    </form>
+
+                    <p class="auth-footer-note">
+                        By signing in, you agree to our
+                        <a href="/privacy">Privacy Policy</a> and
+                        <a href="/terms">Terms of Use</a>.
+                    </p>
+                </div>
+
+                <!-- State: Email sent -->
+                <div id="state-sent" style="display:none;">
+                    <div class="success-state">
+                        <div class="success-icon">
+                            <i data-lucide="mail-check" size="36" color="var(--green-600)"></i>
+                        </div>
+                        <h1>Check your inbox</h1>
+                        <p>We sent a magic link to <strong id="sent-email"></strong>.<br>Click the link in the email to sign in.</p>
+                        <p class="auth-footer-note" style="margin-top:1.5rem;">
+                            Didn't receive it?
+                            <button class="link-btn" id="resend-btn">Resend link</button>
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        let supabase = null;
+        const redirectTo = new URLSearchParams(window.location.search).get('redirect') || '/tools';
+
+        // Load Supabase config from server
+        async function initSupabase() {
+            try {
+                const res = await fetch('/api/config');
+                const { supabaseUrl, supabaseAnonKey } = await res.json();
+                if (!supabaseUrl || !supabaseAnonKey) {
+                    console.warn('Supabase not configured yet.');
+                    return;
+                }
+                supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey, {
+                    auth: {
+                        redirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`
+                    }
+                });
+            } catch (e) {
+                console.error('Config load error:', e);
+            }
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('error-msg');
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('error-msg').style.display = 'none';
+        }
+
+        function setLoading(loading) {
+            const btn = document.getElementById('submit-btn');
+            const text = document.getElementById('btn-text');
+            const icon = document.getElementById('btn-icon');
+            const spinner = document.getElementById('btn-spinner');
+            btn.disabled = loading;
+            text.textContent = loading ? 'Sending...' : 'Send Magic Link';
+            icon.style.display = loading ? 'none' : '';
+            spinner.style.display = loading ? 'inline-block' : 'none';
+        }
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideError();
+            const email = document.getElementById('email-input').value.trim();
+            if (!email) return;
+
+            if (!supabase) {
+                showError('Authentication service is not configured yet. Please try again later.');
+                return;
+            }
+
+            setLoading(true);
+            const { error } = await supabase.auth.signInWithOtp({
+                email,
+                options: {
+                    emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`
+                }
+            });
+            setLoading(false);
+
+            if (error) {
+                showError(error.message || 'Something went wrong. Please try again.');
+                return;
+            }
+
+            // Show success state
+            document.getElementById('state-form').style.display = 'none';
+            document.getElementById('state-sent').style.display = 'block';
+            document.getElementById('sent-email').textContent = email;
+
+            // Store email for resend
+            document.getElementById('resend-btn').dataset.email = email;
+        });
+
+        // Resend link
+        document.getElementById('resend-btn').addEventListener('click', async (e) => {
+            const email = e.target.dataset.email;
+            if (!email || !supabase) return;
+            e.target.textContent = 'Sending...';
+            e.target.disabled = true;
+            await supabase.auth.signInWithOtp({ email });
+            e.target.textContent = 'Sent!';
+            setTimeout(() => {
+                e.target.textContent = 'Resend link';
+                e.target.disabled = false;
+            }, 5000);
+        });
+
+        initSupabase();
+    </script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signing you in — ADAMTOOL</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles/auth.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+
+    <div class="auth-loading">
+        <a href="/" class="logo">
+            <div style="width:36px;height:36px;background:linear-gradient(135deg,#10b981,#fbbf24);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+                <i data-lucide="sun" size="20" color="white"></i>
+            </div>
+            ADAMTOOL
+        </a>
+        <div class="loading-ring"></div>
+        <h2>Signing you in…</h2>
+        <p>Please wait while we verify your magic link.</p>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        const params = new URLSearchParams(window.location.search);
+        const redirectTo = params.get('redirect') || '/tools';
+
+        async function handleCallback() {
+            // Load Supabase config from server
+            let supabase = null;
+            try {
+                const res = await fetch('/api/config');
+                const { supabaseUrl, supabaseAnonKey } = await res.json();
+                if (!supabaseUrl || !supabaseAnonKey) {
+                    throw new Error('Supabase not configured');
+                }
+                supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+            } catch (e) {
+                showError('Authentication service unavailable. Please try again.');
+                return;
+            }
+
+            // Supabase processes the token from the URL hash automatically
+            const { data, error } = await supabase.auth.getSession();
+
+            if (error || !data.session) {
+                // Try exchanging code from URL params (PKCE flow)
+                const code = new URLSearchParams(window.location.search).get('code');
+                if (code) {
+                    const { data: exchanged, error: exchErr } = await supabase.auth.exchangeCodeForSession(code);
+                    if (exchErr || !exchanged?.session) {
+                        showError('Magic link has expired or is invalid. Please request a new one.');
+                        return;
+                    }
+                    await storeSession(exchanged.session.access_token);
+                    return;
+                }
+                showError('Magic link has expired or is invalid. Please request a new one.');
+                return;
+            }
+
+            await storeSession(data.session.access_token);
+        }
+
+        async function storeSession(accessToken) {
+            // Store token in a secure HttpOnly cookie via our server function
+            await fetch('/api/session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: accessToken })
+            });
+
+            // Redirect to the intended page
+            window.location.href = decodeURIComponent(redirectTo);
+        }
+
+        function showError(msg) {
+            document.querySelector('h2').textContent = 'Sign in failed';
+            document.querySelector('p').textContent = msg;
+            document.querySelector('.loading-ring').style.display = 'none';
+
+            const backLink = document.createElement('a');
+            backLink.href = '/login';
+            backLink.textContent = '← Back to login';
+            backLink.style.cssText = 'display:inline-block;margin-top:1.5rem;color:#047857;font-weight:700;text-decoration:none;';
+            document.querySelector('.auth-loading').appendChild(backLink);
+        }
+
+        handleCallback();
+    </script>
+</body>
+</html>
