@@ -5,5 +5,6 @@
   "icon": "ruler",
   "description": "Precision PDF extraction for blueprints. Straighten, clean, and export high-res segments.",
   "status": "live",
-  "sort_order": 1
+  "sort_order": 1,
+  "tags": ["architecture", "real estate", "blueprints", "pdf", "extraction"]
 }

@@ -5,5 +5,6 @@
   "path": "/apps/kanji-pad/",
   "icon": "paintbrush",
   "status": "live",
-  "sort_order": 5
+  "sort_order": 5,
+  "tags": ["japanese", "language", "learning", "writing", "kanji", "handwriting"]
 }

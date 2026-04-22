@@ -339,31 +339,25 @@ git push origin main</code></pre>
         }
 
         async function loadStats() {
-            if (!supabaseUrl) return;
-            const headers = { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${supabaseAnonKey}`, 'Prefer': 'count=exact' };
             try {
-                const usersRes = await fetch(`${supabaseUrl}/rest/v1/user_profiles?select=id`, { headers });
-                const userCount = usersRes.headers.get('content-range')?.split('/')[1] || '0';
-                document.getElementById('stat-users').textContent = userCount;
+                const data = await fetch('/api/admin/analytics').then(r => r.json());
+                if (data.error) throw new Error(data.error);
 
-                const logsRes = await fetch(`${supabaseUrl}/rest/v1/usage_logs?select=id`, { headers });
-                const logCount = logsRes.headers.get('content-range')?.split('/')[1] || '0';
-                document.getElementById('stat-launches').textContent = logCount;
-            } catch(e) { console.error('Stats error:', e); }
+                document.getElementById('stat-users').textContent = data.stats?.totalUsers || '0';
+                document.getElementById('stat-launches').textContent = data.stats?.totalLaunches || '0';
+                
+                if (data.recentLogs) {
+                    renderLogsTable(data.recentLogs);
+                    document.getElementById('log-count-badge').textContent = `Last ${data.recentLogs.length} events`;
+                }
+            } catch(e) { 
+                console.error('Analytics error:', e); 
+            }
         }
 
         async function loadLogs() {
-            if (!supabaseUrl) return;
-            const headers = { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${supabaseAnonKey}` };
-            try {
-                // Fetch logs — simplified to ensure it doesn't fail if relationships are missing
-                const logs = await fetch(
-                    `${supabaseUrl}/rest/v1/usage_logs?select=user_id,app_id,action,created_at&order=created_at.desc&limit=20`,
-                    { headers }
-                ).then(r => r.json());
-                renderLogsTable(Array.isArray(logs) ? logs : []);
-                document.getElementById('log-count-badge').textContent = `Last ${Math.min(Array.isArray(logs) ? logs.length : 0, 20)} events`;
-            } catch(e) { console.error('Logs error:', e); }
+            // Stats now merged into loadStats for efficiency
+            await loadStats();
         }
 
         // ---- Render Apps Table ----
@@ -399,6 +393,9 @@ git push origin main</code></pre>
                                 <a href="${app.path}" target="_blank" class="action-btn" title="Preview">
                                     <i data-lucide="external-link" size="14"></i>
                                 </a>
+                                <button class="action-btn analytics-btn" data-id="${app.id}" data-name="${app.name}" title="View Analytics">
+                                    <i data-lucide="bar-chart-2" size="14"></i>
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -413,6 +410,17 @@ git push origin main</code></pre>
             tbody.querySelectorAll('.delete-btn').forEach(btn => {
                 btn.addEventListener('click', () => deleteApp(btn.dataset.id, btn.dataset.name));
             });
+            tbody.querySelectorAll('.analytics-btn').forEach(btn => {
+                btn.addEventListener('click', () => showAppAnalytics(btn.dataset.id, btn.dataset.name));
+            });
+        }
+
+        async function showAppAnalytics(id, name) {
+            try {
+                const data = await fetch('/api/admin/analytics').then(r => r.json());
+                const stats = data.appStats?.find(s => s.id == id);
+                alert(`Analytics for ${name}:\n\nTotal Launches: ${stats?.launches || 0}`);
+            } catch(e) { alert('Could not load analytics'); }
         }
 
         // ---- Render Logs Table ----

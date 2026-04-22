@@ -33,20 +33,26 @@ export async function onRequestGet(context) {
         }
 
         const user = await authRes.json();
+        const email = user.email ? user.email.toLowerCase() : '';
 
         // 2. Fetch Creator Email from Settings table
         const settingsRes = await fetch(
             `${supabaseUrl}/rest/v1/settings?key=eq.creator_email&select=value`,
             { headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` } }
         );
-        const settings = await settingsRes.json();
-        const creatorEmail = settings[0]?.value;
+        
+        let isCreator = false;
+        if (settingsRes.ok) {
+            const settings = await settingsRes.json();
+            const creatorEmail = settings[0]?.value?.toLowerCase();
+            isCreator = !!creatorEmail && email === creatorEmail;
+        }
 
         return new Response(JSON.stringify({
             authenticated: true,
             id: user.id,
-            email: user.email,
-            isCreator: user.email === creatorEmail
+            email: email,
+            isCreator: isCreator
         }), {
             headers: { 'Content-Type': 'application/json' }
         });

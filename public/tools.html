@@ -53,6 +53,11 @@
             </div>
         </div>
         <div class="user-menu-divider"></div>
+        <a href="mailto:support@adamtool.online" class="user-menu-item">
+            <i data-lucide="mail" size="16"></i>
+            Contact Creator
+        </a>
+        <div class="user-menu-divider"></div>
         <button class="user-menu-item danger" id="logout-btn">
             <i data-lucide="log-out" size="16"></i>
             Sign Out
@@ -207,6 +212,8 @@
                 const link = document.getElementById('creator-link');
                 link.href = '/creator';
                 link.style.display = 'inline-flex';
+            } else {
+                document.getElementById('creator-link').style.display = 'none';
             }
         }
 
@@ -338,12 +345,17 @@
                 <h3>${app.name}</h3>
                 <p>${app.description}</p>
                 <div class="tool-tags">${catTags}</div>
-                ${isLive
-                    ? `<button class="tool-link launch-btn" data-path="${app.path}" data-name="${app.name}" data-icon="${app.icon}">
-                        Launch <i data-lucide="arrow-right" size="16"></i>
-                       </button>`
-                    : `<span class="tool-link muted">In development <i data-lucide="loader" size="16"></i></span>`
-                }
+                <div class="tool-footer">
+                    ${isLive
+                        ? `<button class="tool-link launch-btn" data-path="${app.path}" data-name="${app.name}" data-icon="${app.icon}">
+                            Launch <i data-lucide="arrow-right" size="16"></i>
+                           </button>`
+                        : `<span class="tool-link muted">In development <i data-lucide="loader" size="16"></i></span>`
+                    }
+                    <button class="icon-btn share-btn" title="Share Tool" data-id="${app.id}" data-slug="${app.slug}">
+                        <i data-lucide="share-2" size="16"></i>
+                    </button>
+                </div>
             `;
 
             if (isLive) {
@@ -352,7 +364,25 @@
                 });
             }
 
+            card.querySelector('.share-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                copyShareLink(app);
+            });
+
             return card;
+        }
+
+        function copyShareLink(app) {
+            const url = `${window.location.origin}/tools?app=${app.slug}`;
+            navigator.clipboard.writeText(url);
+            alert(`Link copied to clipboard! Share ${app.name} with others.`);
+            
+            // Log share action
+            fetch('/api/track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ appId: app.id, action: 'share', userId: currentUser?.id })
+            }).catch(() => {});
         }
 
         function iconGradient(icon) {
@@ -372,7 +402,8 @@
                 const matchCat = activeCategory === 'all' || (app.categories || []).includes(activeCategory);
                 const matchSearch = !query ||
                     app.name.toLowerCase().includes(query) ||
-                    app.description.toLowerCase().includes(query);
+                    (app.description || '').toLowerCase().includes(query) ||
+                    (app.tags || []).some(t => t.toLowerCase().includes(query));
                 return matchCat && matchSearch;
             });
             renderApps(filtered);
