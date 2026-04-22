@@ -290,8 +290,15 @@
             const noResults = document.getElementById('no-results');
             grid.innerHTML = '';
 
-            const live = apps.filter(a => a.status === 'live');
-            const soon = apps.filter(a => a.status === 'coming_soon');
+            // Filter and sort apps (case-insensitive and robust to spaces/underscores)
+            const live = apps.filter(a => {
+                const s = (a.status || '').toLowerCase().trim();
+                return s === 'live';
+            });
+            const soon = apps.filter(a => {
+                const s = (a.status || '').toLowerCase().trim().replace(' ', '_');
+                return s === 'coming_soon' || s === 'coming-soon';
+            });
             const sorted = [...live, ...soon];
 
             if (sorted.length === 0) {
@@ -305,6 +312,7 @@
             });
 
             lucide.createIcons();
+            observeAnimations();
         }
 
         function buildCard(app, index) {
