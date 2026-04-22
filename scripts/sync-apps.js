@@ -1,11 +1,14 @@
 /**
- * ADAMTOOL — Sync Apps Script (Updated)
+ * ADAMTOOL — Sync Apps Script
  * This script scans public/apps/ for metadata and updates the Supabase database.
  * Run by GitHub Actions.
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
