@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Blueprint Extractor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root { --primary: #007bff; --dark: #222; --light: #f8f9fa; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background: #333; color: white; overflow: hidden; }
+        
+        header { background: var(--dark); padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444; z-index: 1000; }
+        
+        .header-left { display: flex; align-items: center; gap: 15px; }
+        .title-block { display: flex; flex-direction: column; }
+        .title-block strong { font-size: 18px; }
+        .title-credit { font-size: 9px; color: #888; margin-top: -2px; }
+        
+        .header-controls { display: flex; gap: 10px; align-items: center; }
+        .lang-toggle { background: #444; border: 1px solid #555; padding: 5px 10px; border-radius: 4px; color: white; cursor: pointer; font-size: 12px; }
+        
+        main { display: flex; flex: 1; overflow: hidden; }
+
+        #sidebar { width: 180px; background: #2a2a2a; overflow-y: auto; border-right: 1px solid #444; padding: 10px; }
+        .thumb-item { cursor: pointer; margin-bottom: 15px; border: 2px solid transparent; border-radius: 4px; opacity: 0.7; transition: 0.2s; }
+        .thumb-item.active { border-color: var(--primary); opacity: 1; background: #444; }
+        .thumb-item canvas { width: 100%; display: block; }
+
+        #workspace { flex: 1; position: relative; overflow: hidden; background: #1a1a1a; display: flex; align-items: center; justify-content: center; }
+        #viewport { position: absolute; transform-origin: 0 0; will-change: transform; }
+        #main-canvas { display: block; box-shadow: 0 0 50px rgba(0,0,0,0.5); }
+        #selection-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+
+        .crosshair-guide { position: fixed; pointer-events: none; display: none; z-index: 9999; mix-blend-mode: difference; background: white; }
+        #v-guide { width: 1px; height: 100vh; top: 0; }
+        #h-guide { height: 1px; width: 100vw; left: 0; }
+
+        #selection-status { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.8); padding: 10px 15px; border-radius: 6px; border: 1px solid #555; display: none; font-size: 12px; z-index: 100; }
+        #selection-status.active { display: block; }
+
+        #gallery { width: 320px; background: #2a2a2a; border-left: 1px solid #444; display: flex; flex-direction: column; }
+        #gallery-items { flex: 1; overflow-y: auto; padding: 10px; }
+        .extracted-card { background: #333; border-radius: 8px; padding: 10px; margin-bottom: 15px; border: 1px solid #555; }
+        .extracted-card canvas { width: 100%; background: white; border-radius: 4px; margin-bottom: 8px; max-height: 150px; object-fit: contain; }
+        
+        .toolbar { display: flex; gap: 10px; background: rgba(0,0,0,0.8); padding: 10px; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); border-radius: 30px; z-index: 100; border: 1px solid #555; align-items: center; }
+        .mode-btn { padding: 8px 15px; border-radius: 20px; border: none; background: #444; color: white; cursor: pointer; font-size: 13px; white-space: nowrap; }
+        .mode-btn.active { background: var(--primary); }
+        
+        button.primary { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        button.secondary { background: #555; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+
+        .drop-hint { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #666; text-align: center; pointer-events: none; }
+        .gallery-header { padding: 10px; border-bottom: 1px solid #444; font-weight: bold; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div id="v-guide" class="crosshair-guide"></div>
+<div id="h-guide" class="crosshair-guide"></div>
+
+<header>
+    <div class="header-left">
+        <div class="title-block">
+            <strong>🏗️ Blueprint Pro</strong>
+            <div class="title-credit">— by Adam</div>
+        </div>
+        <input type="file" id="pdf-upload" accept="application/pdf" style="margin-left: 10px;">
+    </div>
+    <div class="header-controls">
+        <button id="export-all" class="primary" disabled>Export Cleaned PDF</button>
+        <select id="lang-select" class="lang-toggle">
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+        </select>
+    </div>
+</header>
+
+<main>
+    <div id="sidebar"></div>
+
+    <div id="workspace">
+        <div class="toolbar">
+            <button id="mode-info" class="mode-btn">ℹ️ <span id="mode-label">Pan/Select Ready</span></button>
+            <span style="border-left: 1px solid #666; margin: 0 5px; height: 20px;"></span>
+            <button id="selection-toggle" class="mode-btn active" onclick="toggleSelectionMode()">Rect Mode</button>
+            <span style="border-left: 1px solid #666; margin: 0 5px; height: 20px;"></span>
+            <button onclick="changeZoom(1.2)" class="mode-btn">+</button>
+            <button onclick="changeZoom(0.8)" class="mode-btn">−</button>
+        </div>
+        
+        <div id="selection-status">
+            <span id="status-text">Click 1st corner</span> | <span id="status-coords">—</span>
+        </div>
+        
+        <div id="viewport">
+            <canvas id="main-canvas"></canvas>
+            <svg id="selection-svg"></svg>
+        </div>
+        <div id="empty-state" class="drop-hint">Drop PDF here to begin</div>
+    </div>
+
+    <div id="gallery">
+        <div class="gallery-header" id="gallery-header">Ready for Export</div>
+        <div id="gallery-items"></div>
+    </div>
+</main>
+
+<script>
+    const { jsPDF } = window.jspdf;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+    const translations = {
+        en: {
+            'ready-export': 'Ready for Export',
+            'export-btn': 'Export Cleaned PDF',
+            'pan-select-ready': 'Pan/Select Ready',
+            'click-1st': 'Click 1st corner',
+            'click-2nd': 'Click 2nd corner',
+            'poly-start': 'Click to add points',
+            'poly-next': 'Double-click to finish',
+            'rect-mode': 'Rect Mode',
+            'poly-mode': 'Free-Form Mode',
+            'straighten': 'Straighten',
+            'remove': 'Remove',
+            'cancel-select': 'Press ESC to cancel',
+            'mode-info': 'Middle-click: Pan | Left-click: Select',
+        },
+        ja: {
+            'ready-export': 'エクスポート準備完了',
+            'export-btn': 'クリーンPDFをエクスポート',
+            'pan-select-ready': 'パン/選択準備完了',
+            'click-1st': '最初のコーナーをクリック',
+            'click-2nd': '2番目のコーナーをクリック',
+            'poly-start': 'クリックしてポイントを追加',
+            'poly-next': 'ダブルクリックで完了',
+            'rect-mode': '矩形モード',
+            'poly-mode': 'フリーフォーム',
+            'straighten': 'まっすぐ',
+            'remove': '削除',
+            'cancel-select': 'ESCで キャンセル',
+            'mode-info': '中ボタン: パン | 左クリック: 選択',
+        }
+    };
+
+    let currentLang = 'en';
+    let selectionMode = 'rect'; // 'rect' or 'poly'
+    let polyPoints = [];
+    let pdfDoc = null, scale = 0.5, offset = { x: 0, y: 0 };
+    let isPanning = false;
+    let startPoint = null;
+    let currentPage = 1;
+    let currentExtracts = [];
+
+    const viewport = document.getElementById('viewport');
+    const mainCanvas = document.getElementById('main-canvas');
+    const ctx = mainCanvas.getContext('2d');
+    const svg = document.getElementById('selection-svg');
+    const workspace = document.getElementById('workspace');
+    const vGuide = document.getElementById('v-guide');
+    const hGuide = document.getElementById('h-guide');
+    const selectionStatus = document.getElementById('selection-status');
+    const statusText = document.getElementById('status-text');
+    const statusCoords = document.getElementById('status-coords');
+
+    function t(key) { return translations[currentLang][key] || key; }
+    
+    function toggleSelectionMode() {
+        selectionMode = selectionMode === 'rect' ? 'poly' : 'rect';
+        const btn = document.getElementById('selection-toggle');
+        btn.innerText = selectionMode === 'rect' ? t('rect-mode') : t('poly-mode');
+        resetSelectionState();
+    }
+
+    function resetSelectionState() {
+        startPoint = null;
+        polyPoints = [];
+        svg.innerHTML = '';
+        selectionStatus.classList.remove('active');
+        statusText.innerText = selectionMode === 'rect' ? t('click-1st') : t('poly-start');
+    }
+
+    function updateUI() {
+        document.getElementById('gallery-header').innerText = t('ready-export');
+        document.getElementById('export-all').innerText = t('export-btn');
+        document.getElementById('mode-label').innerText = t('pan-select-ready');
+        document.getElementById('selection-toggle').innerText = selectionMode === 'rect' ? t('rect-mode') : t('poly-mode');
+        renderGallery();
+    }
+
+    document.getElementById('lang-select').addEventListener('change', e => {
+        currentLang = e.target.value;
+        updateUI();
+    });
+
+    document.getElementById('pdf-upload').addEventListener('change', e => loadPDF(e.target.files[0]));
+    window.addEventListener('dragover', e => e.preventDefault());
+    window.addEventListener('drop', e => { e.preventDefault(); loadPDF(e.dataTransfer.files[0]); });
+
+    async function loadPDF(file) {
+        if (!file) return;
+        document.getElementById('empty-state').style.display = 'none';
+        const buffer = await file.arrayBuffer();
+        pdfDoc = await pdfjsLib.getDocument(buffer).promise;
+        renderSidebar();
+        renderPage(1);
+    }
+
+    async function renderSidebar() {
+        const sb = document.getElementById('sidebar');
+        sb.innerHTML = '';
+        for (let i = 1; i <= pdfDoc.numPages; i++) {
+            const page = await pdfDoc.getPage(i);
+            const vp = page.getViewport({ scale: 0.15 });
+            const item = document.createElement('div');
+            item.className = 'thumb-item' + (i === 1 ? ' active' : '');
+            item.onclick = () => renderPage(i);
+            const canvas = document.createElement('canvas');
+            canvas.width = vp.width; canvas.height = vp.height;
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+            item.appendChild(canvas);
+            sb.appendChild(item);
+        }
+    }
+
+    async function renderPage(num) {
+        currentPage = num;
+        document.querySelectorAll('.thumb-item').forEach((el, i) => {
+            el.classList.toggle('active', i + 1 === num);
+        });
+        const page = await pdfDoc.getPage(num);
+        const vp = page.getViewport({ scale: 2.0 });
+        mainCanvas.width = vp.width;
+        mainCanvas.height = vp.height;
+        svg.setAttribute('viewBox', `0 0 ${vp.width} ${vp.height}`);
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+        resetView();
+        resetSelectionState();
+    }
+
+    function updateTransform() {
+        viewport.style.transform = `translate(${offset.x}px, ${offset.y}px) scale(${scale})`;
+    }
+
+    function resetView() {
+        scale = 0.5;
+        offset = { x: workspace.offsetWidth/4, y: 50 };
+        updateTransform();
+    }
+
+    window.changeZoom = (factor) => { 
+        const rect = workspace.getBoundingClientRect();
+        const mouseX = rect.width / 2;
+        const mouseY = rect.height / 2;
+        const beforeX = (mouseX - offset.x) / scale;
+        const beforeY = (mouseY - offset.y) / scale;
+        scale *= factor;
+        offset.x = mouseX - beforeX * scale;
+        offset.y = mouseY - beforeY * scale;
+        updateTransform();
+    };
+
+    window.addEventListener('keydown', e => {
+        if (e.key === 'Escape') resetSelectionState();
+    });
+
+    workspace.onwheel = e => {
+        e.preventDefault();
+        const rect = workspace.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const beforeX = (mouseX - offset.x) / scale;
+        const beforeY = (mouseY - offset.y) / scale;
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        scale *= delta;
+        offset.x = mouseX - beforeX * scale;
+        offset.y = mouseY - beforeY * scale;
+        updateTransform();
+    };
+
+    workspace.onmousedown = e => {
+        if (e.button === 1) {
+            e.preventDefault();
+            isPanning = true;
+            workspace.classList.add('pan-mode', 'panning');
+        } else if (e.button === 0) {
+            const rect = mainCanvas.getBoundingClientRect();
+            const canvasX = (e.clientX - rect.left) / scale;
+            const canvasY = (e.clientY - rect.top) / scale;
+
+            if (selectionMode === 'rect') {
+                if (!startPoint) {
+                    startPoint = { x: canvasX, y: canvasY, page: currentPage };
+                    selectionStatus.classList.add('active');
+                    statusText.innerText = t('click-2nd');
+                } else {
+                    createExtract(startPoint.x, startPoint.y, canvasX, canvasY, startPoint.page);
+                    resetSelectionState();
+                }
+            } else {
+                polyPoints.push({ x: canvasX, y: canvasY });
+                selectionStatus.classList.add('active');
+                statusText.innerText = `${t('poly-next')} (${polyPoints.length} pts)`;
+                drawPoly();
+            }
+        }
+    };
+
+    workspace.ondblclick = () => {
+        if (selectionMode === 'poly' && polyPoints.length >= 3) {
+            createExtractPoly(polyPoints, currentPage);
+            resetSelectionState();
+        }
+    };
+
+    window.onmousemove = e => {
+        const rect = mainCanvas.getBoundingClientRect();
+        const canvasX = (e.clientX - rect.left) / scale;
+        const canvasY = (e.clientY - rect.top) / scale;
+        
+        statusCoords.innerText = `${Math.round(canvasX)}, ${Math.round(canvasY)}`;
+
+        if (selectionMode === 'rect' && startPoint) {
+            vGuide.style.display = hGuide.style.display = 'block';
+            vGuide.style.left = e.clientX + 'px';
+            hGuide.style.top = e.clientY + 'px';
+            
+            svg.innerHTML = `<rect x="${Math.min(startPoint.x, canvasX)}" y="${Math.min(startPoint.y, canvasY)}" 
+                width="${Math.abs(canvasX - startPoint.x)}" height="${Math.abs(canvasY - startPoint.y)}" 
+                fill="rgba(0,123,255,0.1)" stroke="#007bff" stroke-width="${2/scale}" stroke-dasharray="${5/scale}" />`;
+        } else if (selectionMode === 'poly' && polyPoints.length > 0) {
+            drawPoly(canvasX, canvasY);
+        } else {
+            vGuide.style.display = hGuide.style.display = 'none';
+        }
+
+        if (isPanning) {
+            offset.x += e.movementX;
+            offset.y += e.movementY;
+            updateTransform();
+        }
+    };
+
+    function drawPoly(tempX, tempY) {
+        let pathData = `M ${polyPoints[0].x} ${polyPoints[0].y} `;
+        polyPoints.forEach(p => pathData += `L ${p.x} ${p.y} `);
+        if (tempX !== undefined) pathData += `L ${tempX} ${tempY}`;
+        
+        svg.innerHTML = `
+            <path d="${pathData}" fill="rgba(0,123,255,0.1)" stroke="#007bff" stroke-width="${2/scale}" />
+            ${polyPoints.map(p => `<circle cx="${p.x}" cy="${p.y}" r="${4/scale}" fill="#007bff" />`).join('')}
+        `;
+    }
+
+    window.onmouseup = () => {
+        isPanning = false;
+        workspace.classList.remove('panning');
+    };
+
+    async function createExtract(x1, y1, x2, y2, pageNum) {
+        const x = Math.min(x1, x2), y = Math.min(y1, y2);
+        const w = Math.abs(x1 - x2), h = Math.abs(y1 - y2);
+        if (w < 5 || h < 5) return;
+
+        const page = await pdfDoc.getPage(pageNum);
+        const maxScale = 4.0;
+        
+        // PDF units (72 dpi)
+        const pdfX = x / 2.0;
+        const pdfY = y / 2.0;
+        const pdfW = w / 2.0;
+        const pdfH = h / 2.0;
+
+        const fullPageVp = page.getViewport({ scale: maxScale });
+        const fullPageCanvas = document.createElement('canvas');
+        fullPageCanvas.width = fullPageVp.width;
+        fullPageCanvas.height = fullPageVp.height;
+        await page.render({ canvasContext: fullPageCanvas.getContext('2d'), viewport: fullPageVp }).promise;
+
+        const extractCanvas = document.createElement('canvas');
+        extractCanvas.width = Math.round(pdfW * maxScale);
+        extractCanvas.height = Math.round(pdfH * maxScale);
+        const exCtx = extractCanvas.getContext('2d');
+        exCtx.drawImage(fullPageCanvas, pdfX * maxScale, pdfY * maxScale, pdfW * maxScale, pdfH * maxScale, 0, 0, extractCanvas.width, extractCanvas.height);
+
+        currentExtracts.push({ id: Date.now(), w: pdfW, h: pdfH, rotation: 0, fullResCanvas: extractCanvas });
+        renderGallery();
+    }
+
+    async function createExtractPoly(points, pageNum) {
+        const xs = points.map(p => p.x), ys = points.map(p => p.y);
+        const minX = Math.min(...xs), maxX = Math.max(...xs);
+        const minY = Math.min(...ys), maxY = Math.max(...ys);
+        const w = maxX - minX, h = maxY - minY;
+
+        const page = await pdfDoc.getPage(pageNum);
+        const maxScale = 4.0;
+        
+        const fullPageVp = page.getViewport({ scale: maxScale });
+        const fullPageCanvas = document.createElement('canvas');
+        fullPageCanvas.width = fullPageVp.width;
+        fullPageCanvas.height = fullPageVp.height;
+        await page.render({ canvasContext: fullPageCanvas.getContext('2d'), viewport: fullPageVp }).promise;
+
+        const extractCanvas = document.createElement('canvas');
+        extractCanvas.width = (w / 2) * maxScale;
+        extractCanvas.height = (h / 2) * maxScale;
+        const g = extractCanvas.getContext('2d');
+
+        // Path Clipping
+        g.beginPath();
+        points.forEach((p, i) => {
+            const tx = (p.x - minX) / 2 * maxScale;
+            const ty = (p.y - minY) / 2 * maxScale;
+            if (i === 0) g.moveTo(tx, ty); else g.lineTo(tx, ty);
+        });
+        g.closePath();
+        g.clip();
+
+        g.drawImage(fullPageCanvas, (minX/2)*maxScale, (minY/2)*maxScale, (w/2)*maxScale, (h/2)*maxScale, 0, 0, extractCanvas.width, extractCanvas.height);
+
+        currentExtracts.push({ id: Date.now(), w: w/2, h: h/2, rotation: 0, fullResCanvas: extractCanvas });
+        renderGallery();
+    }
+
+    function renderGallery() {
+        const container = document.getElementById('gallery-items');
+        container.innerHTML = '';
+        currentExtracts.forEach(ex => {
+            const card = document.createElement('div');
+            card.className = 'extracted-card';
+            const displayCanvas = document.createElement('canvas');
+            updateExtractPreview(displayCanvas, ex);
+            card.innerHTML = `
+                <div style="font-size:11px; margin-bottom:5px; color:#aaa;">${t('straighten')}: <b id="val-${ex.id}">${ex.rotation}°</b></div>
+                <input type="range" min="-10" max="10" value="${ex.rotation}" step="0.1" style="width:100%" oninput="updateRotation(${ex.id}, this.value)">
+                <div style="margin-top:8px; display:flex; justify-content:flex-end;">
+                    <button class="secondary" onclick="removeExtract(${ex.id})">${t('remove')}</button>
+                </div>
+            `;
+            card.prepend(displayCanvas);
+            container.appendChild(card);
+        });
+        document.getElementById('export-all').disabled = currentExtracts.length === 0;
+    }
+
+    function updateExtractPreview(canvas, ex) {
+        const angle = ex.rotation * Math.PI / 180;
+        const sin = Math.abs(Math.sin(angle)), cos = Math.abs(Math.cos(angle));
+        canvas.width = ex.w * cos + ex.h * sin;
+        canvas.height = ex.w * sin + ex.h * cos;
+        const g = canvas.getContext('2d');
+        g.fillStyle = "white";
+        g.fillRect(0, 0, canvas.width, canvas.height);
+        g.translate(canvas.width / 2, canvas.height / 2);
+        g.rotate(angle);
+        g.drawImage(ex.fullResCanvas, -ex.w * 2, -ex.h * 2, ex.w * 4, ex.h * 4);
+
+        const imgData = g.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imgData.data;
+        for (let i = 0; i < data.length; i += 4) {
+            const b = (data[i] + data[i+1] + data[i+2]) / 3;
+            if (b > 215) data[i+3] = 0; else { data[i] = data[i+1] = data[i+2] = 0; }
+        }
+        g.putImageData(imgData, 0, 0);
+    }
+
+    window.updateRotation = (id, val) => {
+        const ex = currentExtracts.find(e => e.id === id);
+        ex.rotation = parseFloat(val);
+        document.getElementById(`val-${id}`).innerText = val + '°';
+        updateExtractPreview(document.querySelector(`.extracted-card:has(#val-${id}) canvas`), ex);
+    };
+
+    window.removeExtract = (id) => {
+        currentExtracts = currentExtracts.filter(e => e.id !== id);
+        renderGallery();
+    };
+
+    document.getElementById('export-all').onclick = async () => {
+        let doc = null;
+        for (let i = 0; i < currentExtracts.length; i++) {
+            const ex = currentExtracts[i];
+            const angle = ex.rotation * Math.PI / 180;
+            const sin = Math.abs(Math.sin(angle)), cos = Math.abs(Math.cos(angle));
+            const finalCanvas = document.createElement('canvas');
+            finalCanvas.width = (ex.w * cos * 4 + ex.h * sin * 4);
+            finalCanvas.height = (ex.w * sin * 4 + ex.h * cos * 4);
+            const g = finalCanvas.getContext('2d');
+            g.fillStyle = "white";
+            g.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+            g.translate(finalCanvas.width / 2, finalCanvas.height / 2);
+            g.rotate(angle);
+            g.drawImage(ex.fullResCanvas, -ex.w * 2, -ex.h * 2, ex.w * 4, ex.h * 4);
+
+            const imgData = g.getImageData(0, 0, finalCanvas.width, finalCanvas.height);
+            const data = imgData.data;
+            for (let j = 0; j < data.length; j += 4) {
+                const b = (data[j] + data[j+1] + data[j+2]) / 3;
+                if (b > 215) { data[j]=data[j+1]=data[j+2]=255; } else { data[j]=data[j+1]=data[j+2]=0; }
+            }
+            g.putImageData(imgData, 0, 0);
+
+            const imgWidth = finalCanvas.width;
+            const imgHeight = finalCanvas.height;
+            if (i === 0) {
+                doc = new jsPDF({ orientation: imgWidth > imgHeight ? 'l' : 'p', unit: 'px', format: [imgWidth, imgHeight] });
+            } else {
+                doc.addPage([imgWidth, imgHeight], imgWidth > imgHeight ? 'l' : 'p');
+            }
+            doc.addImage(finalCanvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+        }
+        if (doc) doc.save('cleaned_extracts.pdf');
+    };
+</script>
+</body>
+</html>
