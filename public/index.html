@@ -22,7 +22,7 @@
             ADAMTOOL
         </a>
         <div class="nav-links" id="nav-links">
-            <a href="#tools">Tools</a>
+            <a href="/tools">Tools</a>
             <a href="#how-it-works">How It Works</a>
             <a href="/login" class="btn-nav-cta" id="nav-cta">
                 Sign In <i data-lucide="arrow-right" size="16"></i>
@@ -62,7 +62,7 @@
                 No bloat, no noise — just tools that do exactly what they say.
             </p>
             <div class="hero-actions">
-                <a href="#tools" class="btn-primary">
+                <a href="/tools" class="btn-primary">
                     Browse Tools
                     <i data-lucide="arrow-down-right" size="20"></i>
                 </a>
@@ -158,59 +158,9 @@
         </div>
 
         <div class="tools-grid" id="tools-grid">
-            <!-- Tool 1: Live -->
-            <div class="tool-card animate-on-scroll" data-categories="utilities">
-                <div class="tool-status active">
-                    <i data-lucide="circle-dot" size="12"></i> Live
-                </div>
-                <div class="tool-icon" style="background: linear-gradient(135deg, var(--green-500), var(--green-400));">
-                    <i data-lucide="calculator" size="28" color="white"></i>
-                </div>
-                <h3>Math Genie</h3>
-                <p>Quick-fire calculations and formula evaluation. Drop in an equation, get instant results.</p>
-                <div class="tool-tags">
-                    <span class="tag">Utilities</span>
-                </div>
-                <a href="/login" class="tool-link" id="launch-math-genie">
-                    Sign in to launch <i data-lucide="arrow-right" size="16"></i>
-                </a>
-            </div>
-
-            <!-- Tool 2: Coming Soon -->
-            <div class="tool-card animate-on-scroll" data-categories="ai" style="transition-delay: 0.1s;">
-                <div class="tool-status standby">
-                    <i data-lucide="clock" size="12"></i> Coming Soon
-                </div>
-                <div class="tool-icon" style="background: linear-gradient(135deg, var(--amber-500), var(--amber-400));">
-                    <i data-lucide="brain" size="28" color="white"></i>
-                </div>
-                <h3>AI Summariser</h3>
-                <p>Paste any text, document, or URL and get a clean, structured summary in seconds.</p>
-                <div class="tool-tags">
-                    <span class="tag">AI</span>
-                </div>
-                <span class="tool-link muted">
-                    In development <i data-lucide="loader" size="16"></i>
-                </span>
-            </div>
-
-            <!-- Tool 3: Coming Soon -->
-            <div class="tool-card animate-on-scroll" data-categories="islamic" style="transition-delay: 0.2s;">
-                <div class="tool-status standby">
-                    <i data-lucide="clock" size="12"></i> Coming Soon
-                </div>
-                <div class="tool-icon" style="background: linear-gradient(135deg, var(--green-800), var(--green-700));">
-                    <i data-lucide="book-open" size="28" color="var(--green-300)"></i>
-                </div>
-                <h3>Islamic Advisor</h3>
-                <p>Scholarly AI guidance grounded in Quran and Hadith. Authenticated by tradition, verified by intelligence.</p>
-                <div class="tool-tags">
-                    <span class="tag">Islamic</span>
-                    <span class="tag">AI</span>
-                </div>
-                <span class="tool-link muted">
-                    In development <i data-lucide="loader" size="16"></i>
-                </span>
+            <div class="loading-state">
+                <i data-lucide="loader" class="spin" size="32"></i>
+                <p>Loading the collection...</p>
             </div>
         </div>
 
@@ -254,18 +204,20 @@
         // Init Lucide icons
         lucide.createIcons();
 
-        // If already signed in, redirect to tools or update CTA
+        // If already signed in, update CTA
         fetch('/api/me').then(r => r.json()).then(me => {
             if (me.authenticated) {
-                // If on the root landing page, go straight to tools
-                if (window.location.pathname === '/' || window.location.pathname === '/index.html') {
-                    window.location.href = '/tools';
-                    return;
-                }
                 const cta = document.getElementById('nav-cta');
                 if (cta) {
                     cta.href = '/tools';
                     cta.innerHTML = 'Go to Tools <i data-lucide="arrow-right" size="16"></i>';
+                    lucide.createIcons();
+                }
+                // Also update hero button
+                const heroCta = document.querySelector('.hero-actions .btn-secondary');
+                if (heroCta) {
+                    heroCta.href = '/tools';
+                    heroCta.innerHTML = 'My Dashboard <i data-lucide="layout-dashboard" size="20"></i>';
                     lucide.createIcons();
                 }
             }
@@ -284,17 +236,97 @@
             navLinks.classList.toggle('open');
         });
 
-        // Scroll-triggered fade-in animations
-        const animatedEls = document.querySelectorAll('.animate-on-scroll');
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('visible');
-                    observer.unobserve(entry.target);
-                }
+        // ---- Dynamic Tool Loading (Teaser) ----
+        let allApps = [];
+
+        async function loadLandingTools() {
+            const grid = document.getElementById('tools-grid');
+            
+            try {
+                // Fetch config
+                const config = await fetch('/api/config').then(r => r.json());
+                const { supabaseUrl, supabaseAnonKey } = config;
+
+                // Fetch real apps
+                const apps = await fetch(
+                    `${supabaseUrl}/rest/v1/apps?select=id,name,description,icon,status,slug&status=neq.hidden&order=sort_order.asc,name.asc&limit=6`,
+                    { headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${supabaseAnonKey}` } }
+                ).then(r => r.json());
+
+                allApps = Array.isArray(apps) ? apps : [];
+                renderLandingApps(allApps);
+                
+                // Update metrics bar tool count
+                const countBadge = document.getElementById('metric-tools');
+                if (countBadge) countBadge.innerText = allApps.length;
+
+            } catch (err) {
+                console.error('Landing load error:', err);
+                grid.innerHTML = '<p class="error">Failed to load tools. Please try again later.</p>';
+            }
+        }
+
+        function renderLandingApps(apps) {
+            const grid = document.getElementById('tools-grid');
+            grid.innerHTML = '';
+
+            apps.forEach((app, i) => {
+                const isLive = (app.status || '').toLowerCase() === 'live';
+                const card = document.createElement('div');
+                card.className = 'tool-card animate-on-scroll';
+                card.style.transitionDelay = `${i * 0.08}s`;
+                
+                card.innerHTML = `
+                    <div class="tool-status ${isLive ? 'active' : 'standby'}">
+                        <i data-lucide="${isLive ? 'circle-dot' : 'clock'}" size="12"></i> 
+                        ${isLive ? 'Live' : 'Coming Soon'}
+                    </div>
+                    <div class="tool-icon" style="background: ${getGradient(app.icon)}">
+                        <i data-lucide="${app.icon || 'wrench'}" size="28" color="white"></i>
+                    </div>
+                    <h3>${app.name}</h3>
+                    <p>${app.description || ''}</p>
+                    <div class="tool-tags">
+                        <span class="tag">Tool</span>
+                    </div>
+                    <a href="/login" class="tool-link">
+                        ${isLive ? 'Sign in to launch' : 'In development'} <i data-lucide="${isLive ? 'arrow-right' : 'loader'}" size="16"></i>
+                    </a>
+                `;
+                grid.appendChild(card);
             });
-        }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
-        animatedEls.forEach(el => observer.observe(el));
+
+            lucide.createIcons();
+            observeAnimations();
+        }
+
+        function getGradient(icon) {
+            const gradients = [
+                'linear-gradient(135deg, #10b981, #059669)', // Green
+                'linear-gradient(135deg, #f59e0b, #d97706)', // Amber
+                'linear-gradient(135deg, #3b82f6, #2563eb)', // Blue
+                'linear-gradient(135deg, #8b5cf6, #7c3aed)', // Purple
+                'linear-gradient(135deg, #ef4444, #dc2626)'  // Red
+            ];
+            // Simple deterministic choice based on icon string
+            const idx = (icon || 'wrench').length % gradients.length;
+            return gradients[idx];
+        }
+
+        function observeAnimations() {
+            const animatedEls = document.querySelectorAll('.animate-on-scroll');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.1, rootMargin: '0px 0px -20px 0px' });
+            animatedEls.forEach(el => observer.observe(el));
+        }
+
+        loadLandingTools();
 
         // Tool Search
         const searchInput = document.getElementById('tool-search');
