@@ -1,0 +1,9 @@
+{
+  "name": "Blueprint Pro",
+  "slug": "blueprint-pro",
+  "path": "/apps/blueprint-pro/",
+  "icon": "ruler",
+  "description": "Precision PDF extraction for blueprints. Straighten, clean, and export high-res segments.",
+  "status": "live",
+  "sort_order": 1
+}
