@@ -1,5 +1,5 @@
 /**
- * ADAMTOOL — Sync Apps Script
+ * ADAMTOOL — Sync Apps Script (Updated)
  * This script scans public/apps/ for metadata and updates the Supabase database.
  * Run by GitHub Actions.
  */
