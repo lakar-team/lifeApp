@@ -233,11 +233,18 @@
                 const cats = await fetch(`${BASE}/app_categories?select=name,slug&slug=neq.all&order=name.asc`, { headers }).then(r => r.json());
                 allCategories = Array.isArray(cats) ? cats : [];
 
-                // Fetch apps with their categories
-                const apps = await fetch(`${BASE}/apps?select=id,slug,name,description,icon,path,status,app_category_map(app_categories(name,slug))&status=neq.hidden&order=name.asc`, { headers }).then(r => r.json());
+                // Fetch apps — core data only to ensure visibility
+                const apps = await fetch(
+                    `${supabaseUrl}/rest/v1/apps?select=id,slug,name,description,icon,path,status&status=neq.hidden&order=name.asc`,
+                    { headers }
+                ).then(r => {
+                    if (!r.ok) throw new Error('Apps fetch failed');
+                    return r.json();
+                });
+
                 allApps = Array.isArray(apps) ? apps.map(a => ({
                     ...a,
-                    categories: (a.app_category_map || []).map(m => m.app_categories?.slug).filter(Boolean)
+                    categories: [] // Categories temporarily disabled during schema sync
                 })) : [];
 
                 renderCategories();

@@ -8,7 +8,10 @@ export async function onRequestPost(context) {
     const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !serviceKey) {
-        return new Response(JSON.stringify({ error: 'Server not configured' }), {
+        return new Response(JSON.stringify({ 
+            error: 'Server configuration missing', 
+            details: `SUPABASE_URL: ${!!supabaseUrl}, SERVICE_KEY: ${!!serviceKey}` 
+        }), {
             status: 500, headers: { 'Content-Type': 'application/json' }
         });
     }
@@ -19,35 +22,38 @@ export async function onRequestPost(context) {
     const accessToken = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
 
     if (!accessToken) {
-        return new Response(JSON.stringify({ error: 'Not authenticated' }), {
+        return new Response(JSON.stringify({ error: 'Auth token missing' }), {
             status: 401, headers: { 'Content-Type': 'application/json' }
         });
     }
 
-    const authRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
-        headers: { 'Authorization': `Bearer ${accessToken}`, 'apikey': serviceKey }
-    });
-    if (!authRes.ok) {
-        return new Response(JSON.stringify({ error: 'Invalid session' }), {
-            status: 401, headers: { 'Content-Type': 'application/json' }
+    try {
+        const authRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'apikey': serviceKey }
         });
-    }
+        
+        if (!authRes.ok) {
+            const authErr = await authRes.text();
+            return new Response(JSON.stringify({ error: 'Session validation failed', details: authErr }), {
+                status: 401, headers: { 'Content-Type': 'application/json' }
+            });
+        }
 
-    const user = await authRes.json();
+        const user = await authRes.json();
 
-    // Check creator status from settings table
-    const settingsRes = await fetch(
-        `${supabaseUrl}/rest/v1/settings?key=eq.creator_email&select=value`,
-        { headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` } }
-    );
-    const settings = await settingsRes.json();
-    const creatorEmail = settings[0]?.value;
+        // Check creator status from settings table
+        const settingsRes = await fetch(
+            `${supabaseUrl}/rest/v1/settings?key=eq.creator_email&select=value`,
+            { headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` } }
+        );
+        const settings = await settingsRes.json();
+        const creatorEmail = settings[0]?.value;
 
-    if (user.email !== creatorEmail) {
-        return new Response(JSON.stringify({ error: 'Creator access required' }), {
-            status: 403, headers: { 'Content-Type': 'application/json' }
-        });
-    }
+        if (user.email !== creatorEmail) {
+            return new Response(JSON.stringify({ error: 'Unauthorized: Not the Creator' }), {
+                status: 403, headers: { 'Content-Type': 'application/json' }
+            });
+        }
 
     // 2. Parse the app data from request body
     let appData;
