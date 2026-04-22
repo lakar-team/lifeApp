@@ -54,6 +54,11 @@ export async function onRequestPost(context) {
                 status: 403, headers: { 'Content-Type': 'application/json' }
             });
         }
+    } catch (err) {
+        return new Response(JSON.stringify({ error: 'Server authentication error', details: err.message }), {
+            status: 500, headers: { 'Content-Type': 'application/json' }
+        });
+    }
 
     // 2. Parse the app data from request body
     let appData;
