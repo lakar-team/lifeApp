@@ -1,0 +1,9 @@
+{
+  "name": "Kanji Pad Pro",
+  "slug": "kanji-pad",
+  "description": "Handwriting recognition tool for Kanji characters. Draw characters to find meanings, readings, and romaji.",
+  "path": "/apps/kanji-pad/",
+  "icon": "paintbrush",
+  "status": "live",
+  "sort_order": 5
+}
