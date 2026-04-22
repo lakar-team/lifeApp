@@ -51,7 +51,10 @@ async function sync() {
 
   console.log(`Syncing ${apps.length} apps to Supabase...`);
 
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/apps`, {
+  // Use UPSERT via POST with ?on_conflict=slug
+  const url = `${SUPABASE_URL}/rest/v1/apps?on_conflict=slug`;
+  
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'apikey': SERVICE_KEY,
@@ -63,8 +66,8 @@ async function sync() {
   });
 
   if (!response.ok) {
-    const err = await response.text();
-    console.error('Sync failed:', err);
+    const errText = await response.text();
+    console.error(`Sync failed (Status ${response.status}):`, errText);
     process.exit(1);
   }
 
