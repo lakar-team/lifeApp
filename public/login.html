@@ -123,8 +123,20 @@
             let supabaseClient = null;
             const redirectTo = new URLSearchParams(window.location.search).get('redirect') || '/tools';
 
+            // Auto-redirect if already logged in
+            async function checkExistingSession() {
+                try {
+                    const res = await fetch('/api/me');
+                    const user = await res.json();
+                    if (user.authenticated) {
+                        window.location.href = redirectTo;
+                    }
+                } catch (e) {}
+            }
+
             // Load Supabase config from server
             async function initSupabase() {
+                await checkExistingSession();
                 try {
                     const res = await fetch('/api/config');
                     const { supabaseUrl, supabaseAnonKey } = await res.json();

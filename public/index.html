@@ -254,9 +254,14 @@
         // Init Lucide icons
         lucide.createIcons();
 
-        // If already signed in, update nav CTA to go to tools
+        // If already signed in, redirect to tools or update CTA
         fetch('/api/me').then(r => r.json()).then(me => {
             if (me.authenticated) {
+                // If on the root landing page, go straight to tools
+                if (window.location.pathname === '/' || window.location.pathname === '/index.html') {
+                    window.location.href = '/tools';
+                    return;
+                }
                 const cta = document.getElementById('nav-cta');
                 if (cta) {
                     cta.href = '/tools';
