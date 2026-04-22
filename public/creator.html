@@ -516,27 +516,24 @@ git push origin main</code></pre>
             spinner.style.display = 'inline-block';
 
             try {
-                const headers = {
-                    'apikey': supabaseAnonKey,
-                    'Authorization': `Bearer ${supabaseAnonKey}`,
-                    'Content-Type': 'application/json',
-                    'Prefer': 'return=minimal'
-                };
-
                 let res;
                 if (editingAppId) {
-                    res = await fetch(`${supabaseUrl}/rest/v1/apps?id=eq.${editingAppId}`, {
-                        method: 'PATCH', headers, body: JSON.stringify(body)
+                    res = await fetch(`/api/admin/register-app?id=${editingAppId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
                     });
                 } else {
-                    res = await fetch(`${supabaseUrl}/rest/v1/apps`, {
-                        method: 'POST', headers, body: JSON.stringify(body)
+                    res = await fetch('/api/admin/register-app', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
                     });
                 }
 
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
-                    throw new Error(err.message || err.details || 'Save failed');
+                    throw new Error(err.error || err.details || 'Save failed');
                 }
 
                 closeModal();
@@ -554,12 +551,8 @@ git push origin main</code></pre>
         // ---- Delete App ----
         async function deleteApp(appId, appName) {
             if (!confirm(`Delete "${appName}"? This cannot be undone.`)) return;
-            const headers = {
-                'apikey': supabaseAnonKey,
-                'Authorization': `Bearer ${supabaseAnonKey}`
-            };
             try {
-                await fetch(`${supabaseUrl}/rest/v1/apps?id=eq.${appId}`, { method: 'DELETE', headers });
+                await fetch(`/api/admin/register-app?id=${appId}`, { method: 'DELETE' });
                 await loadApps();
             } catch(e) {
                 alert('Delete failed: ' + e.message);
