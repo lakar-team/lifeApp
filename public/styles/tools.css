@@ -230,7 +230,7 @@
 
 /* ---- CREATOR LINK ---- */
 #creator-link {
-    display: inline-flex !important;
+    display: inline-flex;
     align-items: center;
     gap: 6px;
     background: var(--green-50);
