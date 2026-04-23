@@ -1,0 +1,10 @@
+{
+  "name": "Blueprint Pro - Colour",
+  "slug": "blueprint-color",
+  "path": "/apps/blueprint-color/",
+  "icon": "palette",
+  "description": "Clean and extract high-fidelity blueprint segments while preserving full-color details.",
+  "status": "live",
+  "sort_order": 2,
+  "tags": ["architecture", "real estate", "blueprints", "pdf", "color"]
+}
