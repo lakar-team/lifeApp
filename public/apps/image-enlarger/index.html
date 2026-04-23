@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Enlarger X | High Fidelity Upscaling</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #10b981;
+            --glass: rgba(30, 41, 59, 0.7);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            overflow-x: hidden;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 2rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+            font-weight: 300;
+        }
+
+        .drop-zone {
+            width: 100%;
+            height: 200px;
+            border: 2px dashed var(--border);
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 2rem;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .drop-zone i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-bottom: 2rem;
+            opacity: 0.5;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .controls.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .scale-btn {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .scale-btn:hover {
+            transform: translateY(-2px);
+            border-color: var(--primary);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+        }
+
+        .scale-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .preview-container {
+            margin-top: 2rem;
+            position: relative;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .preview-wrapper {
+            max-width: 100%;
+            max-height: 500px;
+            overflow: auto;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: #000;
+            margin-bottom: 1.5rem;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            image-rendering: -webkit-optimize-contrast; /* Clearer scaling */
+        }
+
+        .action-btns {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .primary-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: ALL 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .primary-btn:hover {
+            background: var(--primary-hover);
+            transform: scale(1.05);
+        }
+
+        .secondary-btn {
+            background: transparent;
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            padding: 0.75rem 2rem;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .secondary-btn:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .status-badge {
+            font-size: 0.8rem;
+            margin-top: 1rem;
+            color: var(--accent);
+            display: none;
+        }
+
+        /* Instructions list */
+        .info-panel {
+            margin-top: 2rem;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        .info-panel kbd {
+            background: #334155;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: inherit;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Image Enlarger X</h1>
+        <p class="subtitle">Upscale your clips with pixel-perfect precision.</p>
+
+        <div class="drop-zone" id="drop-zone">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.4; margin-bottom: 12px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            <p>Paste image <kbd>Ctrl</kbd>+<kbd>V</kbd> or click to upload</p>
+            <input type="file" id="file-input" hidden accept="image/*">
+        </div>
+
+        <div class="controls" id="controls">
+            <button class="scale-btn" data-scale="1">Original</button>
+            <button class="scale-btn" data-scale="2">2X</button>
+            <button class="scale-btn" data-scale="4">4X</button>
+            <button class="scale-btn" data-scale="8">8X</button>
+        </div>
+
+        <div class="preview-container" id="preview-container">
+            <div class="preview-wrapper">
+                <canvas id="output-canvas"></canvas>
+            </div>
+            
+            <div class="action-btns">
+                <button class="primary-btn" id="copy-btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    Copy Enlarged Image
+                </button>
+                <button class="primary-btn" id="translate-btn" style="background: linear-gradient(to right, #4285f4, #34a853);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"/><path d="M4 14l6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="M22 22l-5-10-5 10"/><path d="M14 18h6"/></svg>
+                    Translate (Ja → En)
+                </button>
+                <button class="secondary-btn" id="download-btn">Download</button>
+            </div>
+            <p id="status-msg" class="status-badge">Image copied to clipboard!</p>
+        </div>
+
+        <div class="info-panel">
+            <p>Paste any image from your clipboard to begin. Use the scale buttons to enlarge, then copy it back for use in other software.</p>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const controls = document.getElementById('controls');
+        const previewContainer = document.getElementById('preview-container');
+        const canvas = document.getElementById('output-canvas');
+        const ctx = canvas.getContext('2d');
+        const copyBtn = document.getElementById('copy-btn');
+        const translateBtn = document.getElementById('translate-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const statusMsg = document.getElementById('status-msg');
+        const scaleBtns = document.querySelectorAll('.scale-btn');
+
+        let originalImage = null;
+        let currentScale = 1;
+
+        // Paste Image Handler
+        window.addEventListener('paste', e => {
+            const items = e.clipboardData.items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const file = items[i].getAsFile();
+                    loadImage(file);
+                }
+            }
+        });
+
+        // Click to Upload
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', e => {
+            if (e.target.files.length > 0) {
+                loadImage(e.target.files[0]);
+            }
+        });
+
+        // Drag and Drop
+        dropZone.addEventListener('dragover', e => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length > 0) {
+                loadImage(e.dataTransfer.files[0]);
+            }
+        });
+
+        function loadImage(file) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                const img = new Image();
+                img.onload = () => {
+                    originalImage = img;
+                    previewContainer.style.display = 'flex';
+                    controls.classList.add('active');
+                    updateCanvas(currentScale);
+                    
+                    // Smooth scroll to preview
+                    previewContainer.scrollIntoView({ behavior: 'smooth' });
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function updateCanvas(scale) {
+            if (!originalImage) return;
+            
+            currentScale = scale;
+            
+            // Highlight active button
+            scaleBtns.forEach(btn => {
+                if (parseInt(btn.dataset.scale) === scale) {
+                    btn.classList.add('active');
+                } else if (btn.dataset.scale === '1' && scale === 1) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+
+            const newWidth = originalImage.width * scale;
+            const newHeight = originalImage.height * scale;
+
+            canvas.width = newWidth;
+            canvas.height = newHeight;
+
+            // Use high quality scaling
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            
+            ctx.drawImage(originalImage, 0, 0, newWidth, newHeight);
+        }
+
+        // Scale Button Clicks
+        scaleBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                updateCanvas(parseInt(btn.dataset.scale));
+            });
+        });
+
+        // Copy to Clipboard (using modern Clipboard API)
+        copyBtn.addEventListener('click', async () => {
+            canvas.toBlob(async (blob) => {
+                try {
+                    const item = new ClipboardItem({ [blob.type]: blob });
+                    await navigator.clipboard.write([item]);
+                    showStatus("Copied to clipboard!");
+                } catch (err) {
+                    console.error("Clipboard copy failed", err);
+                    showStatus("Failed to copy. Try downloading instead.");
+                }
+            });
+        });
+
+        // Translate with Google Handler
+        translateBtn.addEventListener('click', async () => {
+            canvas.toBlob(async (blob) => {
+                try {
+                    // 1. Copy image to clipboard first
+                    const item = new ClipboardItem({ [blob.type]: blob });
+                    await navigator.clipboard.write([item]);
+                    
+                    // 2. Open Google Translate in a new tab
+                    // Note: User can then just hit Ctrl+V on that page
+                    window.open('https://translate.google.com/?sl=ja&tl=en&op=images', '_blank');
+                    
+                    showStatus("Copied! Now just paste (Ctrl+V) on the Translate page.");
+                } catch (err) {
+                    console.error("Translate flow failed", err);
+                    showStatus("Failed to copy. Opening Translate anyway...");
+                    window.open('https://translate.google.com/?sl=ja&tl=en&op=images', '_blank');
+                }
+            });
+        });
+
+        // Download Image
+        downloadBtn.addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = `upscaled_${currentScale}x.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        });
+
+        function showStatus(msg) {
+            statusMsg.textContent = msg;
+            statusMsg.style.display = 'block';
+            setTimeout(() => {
+                statusMsg.style.display = 'none';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

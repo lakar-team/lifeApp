@@ -1,0 +1,10 @@
+{
+  "name": "Image Enlarger X",
+  "slug": "image-enlarger",
+  "description": "High fidelity image upscaling. Paste from clipboard, upscale up to 8x, and optionally translate Japanese text via Google.",
+  "path": "/apps/image-enlarger/",
+  "icon": "maximize",
+  "status": "live",
+  "sort_order": 10,
+  "tags": ["image", "upscale", "ai", "translation", "graphics"]
+}

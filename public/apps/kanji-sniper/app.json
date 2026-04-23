@@ -1,0 +1,10 @@
+{
+  "name": "Kanji Sniper Lite",
+  "slug": "kanji-sniper",
+  "description": "Advanced Japanese OCR system. Capture screen areas to instantly recognize and define Kanji characters. Connects with Jisho dictionary for full linguistic analysis.",
+  "path": "/apps/kanji-sniper/",
+  "icon": "target",
+  "status": "live",
+  "sort_order": 11,
+  "tags": ["japanese", "language", "ocr", "kanji", "education"]
+}
