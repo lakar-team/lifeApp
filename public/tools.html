@@ -322,7 +322,7 @@
 
             card.innerHTML = `
                 <div class="tool-status ${isLive ? 'active' : 'standby'}">
-                    <i data-lucide="${isLive ? 'circle-dot' : 'clock'}" size="12"></i>
+                    <div class="status-dot"></div>
                     ${isLive ? 'Live' : 'Coming Soon'}
                 </div>
                 <div class="tool-icon" style="background: ${iconGradient(app.icon)}">
@@ -330,17 +330,23 @@
                 </div>
                 <h3>${app.name}</h3>
                 <p>${app.description}</p>
-                <div class="tool-tags">${catTags}</div>
+                
                 <div class="tool-footer">
-                    ${isLive
-                        ? `<button class="tool-link launch-btn" data-path="${app.path}" data-name="${app.name}" data-icon="${app.icon}">
-                            Launch <i data-lucide="arrow-right" size="16"></i>
-                           </button>`
-                        : `<span class="tool-link muted">In development <i data-lucide="loader" size="16"></i></span>`
-                    }
-                    <button class="icon-btn share-btn" title="Share Tool" data-id="${app.id}" data-slug="${app.slug}">
-                        <i data-lucide="share-2" size="16"></i>
-                    </button>
+                    <div class="tool-tags">${catTags}</div>
+                    <div class="tool-actions">
+                        <button class="action-bubble share-btn" title="Share Tool" data-id="${app.id}" data-slug="${app.slug}">
+                            <i data-lucide="share-2" size="18"></i>
+                        </button>
+                        ${isLive 
+                            ? `<button class="action-bubble launch-btn-icon" title="Launch App">
+                                <i data-lucide="rocket" size="20"></i>
+                               </button>`
+                            : ''
+                        }
+                    </div>
+                </div>
+                <div class="card-launch-hint">
+                    Launch Tool <i data-lucide="arrow-right" size="14"></i>
                 </div>
             `;
 

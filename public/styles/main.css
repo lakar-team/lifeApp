@@ -571,12 +571,14 @@ body {
   position: relative;
   overflow: hidden;
   cursor: pointer;
+  display: flex;
+  flex-direction: column;
 }
 
 .tool-card:hover {
-  transform: translateY(-12px) scale(1.02);
+  transform: translateY(-12px) scale(1.03);
   border-color: var(--green-400);
-  box-shadow: 0 40px 80px -20px rgba(16, 185, 129, 0.25);
+  box-shadow: 0 40px 80px -20px rgba(16, 185, 129, 0.2);
 }
 
 .tool-card::before {
@@ -585,31 +587,51 @@ body {
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
+  height: 6px;
   background: linear-gradient(90deg, var(--green-400), var(--amber-400));
   opacity: 0;
   transition: opacity 0.4s;
+  z-index: 2;
 }
 
 .tool-card:hover::before {
   opacity: 1;
 }
 
+/* Status Dot Animation */
 .tool-status {
   position: absolute;
   top: 2rem;
   right: 2rem;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  color: var(--text-muted);
 }
 
-.tool-status.active { color: var(--green-500); }
-.tool-status.standby { color: var(--text-muted); }
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green-400);
+}
+
+.tool-status.active { color: var(--green-600); }
+.tool-status.active .status-dot {
+  background: var(--green-500);
+  box-shadow: 0 0 10px var(--green-400);
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.6); opacity: 0.5; }
+  100% { transform: scale(1); opacity: 1; }
+}
 
 .tool-icon {
   width: 64px;
@@ -636,15 +658,67 @@ body {
   margin-bottom: 2rem;
 }
 
-.tool-link {
-  display: inline-flex;
+.tool-footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.tool-actions {
+  display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.action-bubble {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--border-soft);
+  background: white;
   color: var(--green-700);
-  font-weight: 700;
-  font-size: 0.95rem;
-  text-decoration: none;
-  transition: all 0.3s var(--ease-out-expo);
+  cursor: pointer;
+  transition: all 0.3s var(--ease-spring);
+}
+
+.action-bubble:hover {
+  background: var(--green-900);
+  color: white;
+  border-color: var(--green-900);
+  transform: scale(1.1) rotate(5deg);
+}
+
+.card-launch-hint {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 2.5rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--green-700);
+  opacity: 0;
+  transform: translateX(-15px);
+  transition: all 0.4s var(--ease-out-expo);
+  pointer-events: none;
+}
+
+.tool-card:hover .card-launch-hint {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.tool-card:hover h3, .tool-card:hover p {
+  transform: translateY(-10px);
+}
+.tool-card h3, .tool-card p {
+  transition: transform 0.4s var(--ease-out-expo);
 }
 
 .tool-link:hover {
