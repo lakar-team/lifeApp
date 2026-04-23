@@ -574,9 +574,9 @@ body {
 }
 
 .tool-card:hover {
-  transform: translateY(-12px) rotate(0.5deg);
+  transform: translateY(-12px) scale(1.02);
   border-color: var(--green-400);
-  box-shadow: 0 40px 80px -20px rgba(16, 185, 129, 0.15);
+  box-shadow: 0 40px 80px -20px rgba(16, 185, 129, 0.25);
 }
 
 .tool-card::before {

@@ -76,15 +76,11 @@
             </div>
         </div>
 
-        <!-- Search + Filter -->
-        <div class="tools-filter">
-            <div class="search-bar">
-                <i data-lucide="search" size="18" color="var(--text-muted)"></i>
-                <input type="text" id="tool-search" placeholder="Search tools..." autocomplete="off">
-            </div>
-            <div class="category-pills" id="category-pills">
-                <button class="pill active" data-category="all">All</button>
-                <!-- Categories loaded dynamically -->
+        <!-- Search -->
+        <div class="tools-filter" style="justify-content: center;">
+            <div class="search-bar" style="max-width: 600px; width: 100%;">
+                <i data-lucide="search" size="20" color="var(--text-muted)"></i>
+                <input type="text" id="tool-search" placeholder="Search the collection..." autocomplete="off">
             </div>
         </div>
 
@@ -143,8 +139,6 @@
         let supabaseAnonKey = '';
         let currentUser = null;
         let allApps = [];
-        let allCategories = [];
-        let activeCategory = 'all';
 
         // ---- Bootstrap ----
         async function init() {
@@ -225,10 +219,8 @@
             if (!BASE) {
                 // Fallback: use hardcoded data if config not loaded
                 allApps = [
-                    { id: '1', slug: 'math-genie', name: 'Math Genie', description: 'Quick-fire calculations and unit conversions.', icon: 'calculator', path: '/apps/math-genie/', status: 'live', categories: ['utilities'] },
+                    { id: '1', slug: 'math-genie', name: 'Math Genie', description: 'Quick-fire calculations and unit conversions.', icon: 'calculator', path: '/apps/math-genie/', status: 'live' },
                 ];
-                allCategories = [{ name: 'Utilities', slug: 'utilities' }];
-                renderCategories();
                 renderApps(allApps);
                 return;
             }
@@ -236,10 +228,6 @@
             const headers = { 'apikey': ANON_KEY, 'Authorization': `Bearer ${ANON_KEY}` };
 
             try {
-                // Fetch categories (excluding 'all' — we add that manually)
-                const cats = await fetch(`${BASE}/app_categories?select=name,slug&slug=neq.all&order=name.asc`, { headers }).then(r => r.json());
-                allCategories = Array.isArray(cats) ? cats : [];
-
                 // Fetch apps — core data only to ensure visibility
                 const apps = await fetch(
                     `${supabaseUrl}/rest/v1/apps?select=id,slug,name,description,icon,path,status&status=neq.hidden&order=name.asc`,
@@ -250,11 +238,9 @@
                 });
 
                 allApps = Array.isArray(apps) ? apps.map(a => ({
-                    ...a,
-                    categories: [] // Categories temporarily disabled during schema sync
+                    ...a
                 })) : [];
 
-                renderCategories();
                 renderApps(allApps);
             } catch (e) {
                 console.error('Data load error:', e);
@@ -359,7 +345,8 @@
             `;
 
             if (isLive) {
-                card.querySelector('.launch-btn').addEventListener('click', () => {
+                card.style.cursor = 'pointer';
+                card.addEventListener('click', () => {
                     openLauncher(app);
                 });
             }
