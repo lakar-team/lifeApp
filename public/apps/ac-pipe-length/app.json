@@ -1,0 +1,10 @@
+{
+  "name": "AC Pipe Length",
+  "slug": "ac-pipe-length",
+  "path": "/apps/ac-pipe-length/",
+  "icon": "ruler",
+  "description": "Calculate refrigerant pipe lengths for air conditioning system design.",
+  "status": "live",
+  "sort_order": 20,
+  "tags": ["hvac", "engineering", "ac", "piping"]
+}

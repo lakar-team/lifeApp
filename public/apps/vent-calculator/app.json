@@ -1,0 +1,10 @@
+{
+  "name": "Vent Calculator",
+  "slug": "vent-calculator",
+  "path": "/apps/vent-calculator/",
+  "icon": "wind",
+  "description": "Quick calculation tool for ventilation requirements and air exchange rates.",
+  "status": "live",
+  "sort_order": 22,
+  "tags": ["hvac", "ventilation", "engineering"]
+}

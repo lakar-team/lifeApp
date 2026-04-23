@@ -1,0 +1,10 @@
+{
+  "name": "HydroCalc",
+  "slug": "hydrocalc",
+  "path": "/apps/hydrocalc/",
+  "icon": "droplets",
+  "description": "Hydraulic calculation suite for advanced plumbing and water system engineering.",
+  "status": "live",
+  "sort_order": 23,
+  "tags": ["hydraulics", "plumbing", "water", "engineering"]
+}

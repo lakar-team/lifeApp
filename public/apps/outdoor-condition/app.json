@@ -1,0 +1,10 @@
+{
+  "name": "Outdoor Condition",
+  "slug": "outdoor-condition",
+  "path": "/apps/outdoor-condition/",
+  "icon": "cloud-sun",
+  "description": "Adjust system parameters based on ambient outdoor temperature and conditions.",
+  "status": "live",
+  "sort_order": 21,
+  "tags": ["hvac", "weather", "optimization"]
+}
