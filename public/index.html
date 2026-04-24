@@ -249,7 +249,7 @@
 
                 // Fetch real apps
                 const apps = await fetch(
-                    `${supabaseUrl}/rest/v1/apps?select=id,name,description,icon,status,slug&status=neq.hidden&order=sort_order.asc,name.asc&limit=6`,
+                    `${supabaseUrl}/rest/v1/apps?select=id,name,description,icon,status,slug&status=neq.hidden&order=sort_order.asc,name.asc`,
                     { headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${supabaseAnonKey}` } }
                 ).then(r => r.json());
 
