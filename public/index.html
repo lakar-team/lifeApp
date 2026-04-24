@@ -142,18 +142,11 @@
             <p>Every tool here was built to solve a specific, real problem. Sign in to launch any tool.</p>
         </div>
 
-        <!-- Search + Category Filter -->
-        <div class="tools-filter animate-on-scroll">
-            <div class="search-bar">
-                <i data-lucide="search" size="18" color="var(--text-muted)"></i>
-                <input type="text" id="tool-search" placeholder="Search tools..." autocomplete="off">
-            </div>
-            <div class="category-pills" id="category-pills">
-                <button class="pill active" data-category="all">All</button>
-                <button class="pill" data-category="ai">AI</button>
-                <button class="pill" data-category="finance">Finance</button>
-                <button class="pill" data-category="utilities">Utilities</button>
-                <button class="pill" data-category="islamic">Islamic</button>
+        <!-- Search -->
+        <div class="tools-filter animate-on-scroll" style="justify-content: center;">
+            <div class="search-bar" style="max-width: 600px; width: 100%;">
+                <i data-lucide="search" size="20" color="var(--text-muted)"></i>
+                <input type="text" id="tool-search" placeholder="Search the collection..." autocomplete="off">
             </div>
         </div>
 
@@ -335,17 +328,15 @@
 
         function filterTools() {
             const query = searchInput.value.toLowerCase().trim();
-            const activeCategory = document.querySelector('.pill.active').dataset.category;
             let visible = 0;
 
+            const toolCards = document.querySelectorAll('.tool-card');
             toolCards.forEach(card => {
                 const name = card.querySelector('h3').textContent.toLowerCase();
                 const desc = card.querySelector('p').textContent.toLowerCase();
-                const cats = card.dataset.categories || '';
                 const matchesSearch = !query || name.includes(query) || desc.includes(query);
-                const matchesCat = activeCategory === 'all' || cats.includes(activeCategory);
 
-                if (matchesSearch && matchesCat) {
+                if (matchesSearch) {
                     card.style.display = '';
                     visible++;
                 } else {
@@ -357,16 +348,6 @@
         }
 
         searchInput.addEventListener('input', filterTools);
-
-        // Category Pills
-        const pills = document.querySelectorAll('.pill');
-        pills.forEach(pill => {
-            pill.addEventListener('click', () => {
-                pills.forEach(p => p.classList.remove('active'));
-                pill.classList.add('active');
-                filterTools();
-            });
-        });
 
         // Contact Us helper
         function contactUs(e) {
