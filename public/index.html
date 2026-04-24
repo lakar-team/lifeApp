@@ -191,7 +191,7 @@
                 ADAMTOOL
             </div>
             <div class="footer-links">
-                <a href="#">Privacy</a>
+                <a href="#" onclick="contactUs(event)">Contact Us</a>
                 <a href="#">Terms</a>
                 <a href="/login">Sign In</a>
             </div>
@@ -367,6 +367,13 @@
                 filterTools();
             });
         });
+
+        // Contact Us helper
+        function contactUs(e) {
+            e.preventDefault();
+            alert("I appreciate your feedback! You can contact me directly at lakar.team@gmail.com.");
+            window.location.href = "mailto:lakar.team@gmail.com";
+        }
     </script>
 </body>
 </html>
