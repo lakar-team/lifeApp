@@ -354,6 +354,14 @@ App.State = {
  * ================================================================ */
 App.PDFLoader = (function () {
 
+  // OpenCV.js runs in 32-bit WASM: preprocessing allocates several full-size
+  // mats (RGBA + gray + binary + 32-bit labels), so total pixels must stay
+  // well under the ~2GB heap ceiling. Large-format pages (A2/A1/A0) at the
+  // default 600dpi exceed it by far and die with "memory access out of
+  // bounds", so renders are capped and the effective DPI reported back —
+  // unit conversion must use the effective value or exports come out scaled.
+  const MAX_RENDER_PIXELS = 50e6;
+
   async function loadFile(file) {
     const buf = await file.arrayBuffer();
     const loadingTask = pdfjsLib.getDocument({ data: buf });
@@ -367,8 +375,15 @@ App.PDFLoader = (function () {
   /** Render a page to an offscreen canvas at the given DPI (72dpi = 1x pdf unit). */
   async function renderPageToCanvas(pageNum, dpi) {
     const page = await App.State.pdfDoc.getPage(pageNum);
-    const scale = dpi / 72;
-    const viewport = page.getViewport({ scale });
+    let scale = dpi / 72;
+    let viewport = page.getViewport({ scale });
+    let effectiveDpi = dpi;
+    if (viewport.width * viewport.height > MAX_RENDER_PIXELS) {
+      const shrink = Math.sqrt(MAX_RENDER_PIXELS / (viewport.width * viewport.height));
+      scale *= shrink;
+      effectiveDpi = dpi * shrink;
+      viewport = page.getViewport({ scale });
+    }
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(viewport.width));
     canvas.height = Math.max(1, Math.round(viewport.height));
@@ -376,7 +391,7 @@ App.PDFLoader = (function () {
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     await page.render({ canvasContext: ctx, viewport }).promise;
-    return canvas;
+    return { canvas, effectiveDpi };
   }
 
   /**
@@ -474,16 +489,31 @@ App.PDFLoader = (function () {
     }
   }
 
+  /** Downscale an oversized bitmap canvas to fit the pixel budget; s<1 shrinks coordinates and effective DPI alike. */
+  function capCanvas(canvas, dpi) {
+    const area = canvas.width * canvas.height;
+    if (area <= MAX_RENDER_PIXELS) return { canvas, effectiveDpi: dpi };
+    const s = Math.sqrt(MAX_RENDER_PIXELS / area);
+    const small = document.createElement('canvas');
+    small.width = Math.max(1, Math.round(canvas.width * s));
+    small.height = Math.max(1, Math.round(canvas.height * s));
+    small.getContext('2d', { willReadFrequently: true }).drawImage(canvas, 0, 0, small.width, small.height);
+    return { canvas: small, effectiveDpi: dpi * s };
+  }
+
   /** Top-level entry point: returns a canvas for the requested page following the spec pipeline. */
   async function getPageCanvas(pageNum, dpi, preferEmbedded) {
     if (preferEmbedded) {
       try {
         const c = await tryExtractEmbeddedBitmap(pageNum);
-        if (c) return { canvas: c, source: 'embedded' };
+        if (c) {
+          const capped = capCanvas(c, dpi);
+          return { canvas: capped.canvas, source: 'embedded', effectiveDpi: capped.effectiveDpi };
+        }
       } catch (e) { /* fall through to render */ }
     }
-    const c = await renderPageToCanvas(pageNum, dpi);
-    return { canvas: c, source: 'rendered' };
+    const r = await renderPageToCanvas(pageNum, dpi);
+    return { canvas: r.canvas, source: 'rendered', effectiveDpi: r.effectiveDpi };
   }
 
   return { loadFile, getPageCanvas, renderThumbnails };
@@ -609,22 +639,22 @@ App.ImageProcessor = (function () {
     }
 
     if (opts.despeckle > 0 || opts.minComponent > 0) {
+      // One pass over the label map. Anything per-component that allocates a
+      // full-size Mat (the old cv.compare approach) leaks the WASM heap dry
+      // on real scans, which have hundreds of speckle components.
       const minArea = Math.max(opts.despeckle, opts.minComponent);
       const labels = new cv.Mat(), stats = new cv.Mat(), centroids = new cv.Mat();
       const n = cv.connectedComponentsWithStats(work, labels, stats, centroids, 8, cv.CV_32S);
-      const cleaned = cv.Mat.zeros(work.rows, work.cols, cv.CV_8U);
+      const keep = new Uint8Array(n);
       for (let lbl = 1; lbl < n; lbl++) {
-        const area = stats.intAt(lbl, cv.CC_STAT_AREA);
-        if (area >= minArea) {
-          const mask = new cv.Mat();
-          cv.compare(labels, new cv.Mat(labels.rows, labels.cols, labels.type(), new cv.Scalar(lbl)), mask, cv.CMP_EQ);
-          cv.bitwise_or(cleaned, mask, cleaned, mask);
-          cleaned.setTo(new cv.Scalar(255), mask);
-          mask.delete();
-        }
+        keep[lbl] = stats.intAt(lbl, cv.CC_STAT_AREA) >= minArea ? 1 : 0;
       }
-      labels.delete(); stats.delete(); centroids.delete();
-      work.delete(); work = cleaned;
+      const lbl32 = labels.data32S;
+      const w0 = work.cols, h0 = work.rows;
+      const cleanedData = new Uint8Array(w0 * h0);
+      for (let i = 0; i < cleanedData.length; i++) cleanedData[i] = keep[lbl32[i]] ? 255 : 0;
+      labels.delete(); stats.delete(); centroids.delete(); work.delete();
+      work = cv.matFromArray(h0, w0, cv.CV_8U, cleanedData);
     }
 
     const binaryPreviewCanvas = document.createElement('canvas');
@@ -1029,11 +1059,41 @@ App.GeometryFitter = (function () {
   function fitBranch(branch, opts, layer) {
     const pts = branch.points;
     if (pts.length < 2) return [];
-    const simplified = douglasPeucker(pts, opts.epsilon);
+    // A closed loop starts and ends on the same pixel, so DP's anchor chord
+    // is degenerate and every interior point measures distance 0 — the whole
+    // loop collapses to a zero-length line. Split at the farthest point from
+    // the start and simplify the two halves independently.
+    let simplified;
+    if (branch.closed) {
+      let far = 0, fd = -1;
+      for (let i = 1; i < pts.length; i++) {
+        const d = (pts[i][0] - pts[0][0]) ** 2 + (pts[i][1] - pts[0][1]) ** 2;
+        if (d > fd) { fd = d; far = i; }
+      }
+      const a = douglasPeucker(pts.slice(0, far + 1), opts.epsilon);
+      const b = douglasPeucker(pts.slice(far), opts.epsilon);
+      simplified = a.concat(b.slice(1));
+    } else {
+      simplified = douglasPeucker(pts, opts.epsilon);
+    }
 
     if (opts.fitArcs && (branch.closed || simplified.length > 2)) {
       const circle = fitCircle(pts.length > 40 ? sample(pts, 40) : pts);
-      if (circle && circle.rms <= opts.circleTol) {
+      // Kasa fit of a nearly-straight chain converges on an enormous circle
+      // (r >> the chain itself) with tiny rms, so tolerance alone lets
+      // straight lines through as giant off-page circles. A genuine arc's
+      // radius is bounded by its bounding box: r = diag/2 for a full circle
+      // up to ~2*diag for a shallow ~30° arc.
+      let bboxOk = false;
+      if (circle) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const [x, y] of pts) {
+          if (x < minX) minX = x; if (x > maxX) maxX = x;
+          if (y < minY) minY = y; if (y > maxY) maxY = y;
+        }
+        bboxOk = circle.r <= Math.hypot(maxX - minX, maxY - minY) * 2;
+      }
+      if (circle && bboxOk && circle.rms <= opts.circleTol) {
         const [sx, sy] = pts[0], [ex, ey] = pts[pts.length - 1];
         const startAngle = Math.atan2(sy - circle.cy, sx - circle.cx) * 180 / Math.PI;
         const endAngle = Math.atan2(ey - circle.cy, ex - circle.cx) * 180 / Math.PI;
@@ -1438,12 +1498,17 @@ App.UIController = (function () {
 
   async function renderPage() {
     const opts = readOpts();
-    App.State.dpi = opts.dpi;
     App.Status.busy('Rendering page at ' + opts.dpi + ' DPI…');
-    const { canvas, source } = await App.PDFLoader.getPageCanvas(App.State.pageIndex, opts.dpi, opts.useEmbedded);
+    const { canvas, source, effectiveDpi } = await App.PDFLoader.getPageCanvas(App.State.pageIndex, opts.dpi, opts.useEmbedded);
+    // DXF unit conversion divides by this, so it must match the pixels we
+    // actually rendered — not the slider value — whenever the cap kicked in.
+    App.State.dpi = effectiveDpi;
     App.State.originalImage = canvas;
     App.Renderer.setSource('original', { kind: 'raster', canvas });
-    App.Status.ok('Rendered (' + source + '), ' + canvas.width + '×' + canvas.height + 'px.');
+    const capNote = effectiveDpi < opts.dpi - 0.5
+      ? ' Large page: DPI capped to ' + Math.round(effectiveDpi) + ' to fit processing memory.'
+      : '';
+    App.Status.ok('Rendered (' + source + '), ' + canvas.width + '×' + canvas.height + 'px.' + capNote);
     $('btnPreprocess').disabled = false;
     resetDownstream();
   }
@@ -1565,12 +1630,16 @@ App.UIController = (function () {
         App.Status.set('Waiting for OpenCV.js to finish loading… auto-process will continue automatically.');
         await new Promise(resolve => App.CvWait.onReady(resolve));
       }
+      // Each stage reports its own error via App.Status; stop there instead
+      // of overwriting it with a bogus "Auto-processed (0 entities)" success.
       runPreprocess();
+      if (!App.State.binaryImage) return;
       await runSkeletonize();
+      if (!App.State.skeletonImage) return;
       runFitGeometry();
+      if (!App.State.geometry) return;
       switchTab('vectors');
-      const n = App.State.geometry ? App.State.geometry.length : 0;
-      App.Status.ok('Auto-processed with DPI-scaled defaults (' + n + ' entities). Adjust any slider and re-run that stage to refine.');
+      App.Status.ok('Auto-processed with DPI-scaled defaults (' + App.State.geometry.length + ' entities). Adjust any slider and re-run that stage to refine.');
     } catch (e) {
       App.Status.err('Auto process failed: ' + e.message);
     } finally {
