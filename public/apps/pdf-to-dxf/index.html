@@ -520,6 +520,180 @@ App.PDFLoader = (function () {
 })();
 
 /* ================================================================
+ * VectorExtractor - pulls native vector geometry (lines, curves,
+ * dots) straight out of the PDF content stream via pdf.js's operator
+ * list. For CAD-exported PDFs this is exact and near-instant, and
+ * skips the entire raster pipeline (render/OpenCV/skeletonize) that
+ * exists only for scanned bitmaps.
+ * Coordinates are kept in PDF points (72/inch) but flipped to the
+ * y-down space the Renderer and DXFWriter already expect, so the
+ * existing display/export code works unchanged with dpi=72.
+ * ================================================================ */
+App.VectorExtractor = (function () {
+
+  function mul(m1, m2) {
+    return [
+      m1[0] * m2[0] + m1[2] * m2[1],
+      m1[1] * m2[0] + m1[3] * m2[1],
+      m1[0] * m2[2] + m1[2] * m2[3],
+      m1[1] * m2[2] + m1[3] * m2[3],
+      m1[0] * m2[4] + m1[2] * m2[5] + m1[4],
+      m1[1] * m2[4] + m1[3] * m2[5] + m1[5]
+    ];
+  }
+  function apply(m, x, y) { return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]; }
+
+  function flattenCubic(p0, c1, c2, p3, out) {
+    // fixed 16-segment flattening: plenty below any plot tolerance
+    for (let i = 1; i <= 16; i++) {
+      const t = i / 16, u = 1 - t;
+      out.push([
+        u * u * u * p0[0] + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t * t * t * p3[0],
+        u * u * u * p0[1] + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t * t * t * p3[1]
+      ]);
+    }
+  }
+
+  /** Convert committed subpaths to DXF-ready entities (pt units, y-down). */
+  function subpathsToEntities(subpaths, pageH, x0, y0) {
+    const entities = [];
+    for (const sp of subpaths) {
+      // dedupe consecutive identical points, flip to y-down page space
+      const pts = [];
+      for (const [px, py] of sp.points) {
+        const x = px - x0, y = pageH - (py - y0);
+        const last = pts[pts.length - 1];
+        if (!last || Math.abs(last[0] - x) > 1e-6 || Math.abs(last[1] - y) > 1e-6) pts.push([x, y]);
+      }
+      // Paths drawn back to their start point without an explicit closePath
+      // op (common CAD-export style) are geometrically closed all the same.
+      let closed = !!sp.closed;
+      if (pts.length > 2) {
+        const a = pts[0], b = pts[pts.length - 1];
+        if (Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.01) { closed = true; pts.pop(); }
+      }
+      // A zero-length stroke (round-cap pen dot) collapses to one point after
+      // dedupe — that's a deliberate dot in the drawing, not noise.
+      if (pts.length === 1) {
+        entities.push({ type: 'POINT', x: pts[0][0], y: pts[0][1], layer: 'GEOMETRY-POINTS' });
+        continue;
+      }
+      if (pts.length < 2) continue;
+      if (pts.length === 2 && !closed) {
+        entities.push({ type: 'LINE', x1: pts[0][0], y1: pts[0][1], x2: pts[1][0], y2: pts[1][1], layer: 'GEOMETRY-LINES' });
+        continue;
+      }
+      if (closed && sp.hadCurve && pts.length >= 8) {
+        const circle = App.GeometryFitter.fitCircle(pts);
+        if (circle && circle.rms <= Math.max(0.05, circle.r * 0.02)) {
+          entities.push({ type: 'CIRCLE', cx: circle.cx, cy: circle.cy, r: circle.r, layer: 'GEOMETRY-CIRCLES' });
+          continue;
+        }
+      }
+      entities.push({ type: 'LWPOLYLINE', points: pts, closed, layer: 'GEOMETRY-LINES' });
+    }
+    return entities;
+  }
+
+  async function extract(pageNum) {
+    const page = await App.State.pdfDoc.getPage(pageNum);
+    const opList = await page.getOperatorList();
+    const OPS = pdfjsLib.OPS;
+    const vb = page.getViewport({ scale: 1 }).viewBox; // [x0,y0,x1,y1] in pt
+    const pageW = vb[2] - vb[0], pageH = vb[3] - vb[1];
+
+    const coordCount = {};
+    coordCount[OPS.moveTo] = 2; coordCount[OPS.lineTo] = 2;
+    coordCount[OPS.curveTo] = 6; coordCount[OPS.curveTo2] = 4;
+    coordCount[OPS.curveTo3] = 4; coordCount[OPS.closePath] = 0;
+    coordCount[OPS.rectangle] = 4;
+
+    let ctm = [1, 0, 0, 1, 0, 0];
+    const ctmStack = [];
+    let pending = [];   // subpaths accumulated since the last paint op
+    let current = null; // { points, closed, hadCurve }
+    let cursor = null;  // current point in user space (pre-CTM)
+    const subpaths = [];
+    let hasImage = false;
+
+    function beginSub(x, y) {
+      current = { points: [apply(ctm, x, y)], closed: false, hadCurve: false };
+      pending.push(current);
+      cursor = [x, y];
+    }
+
+    for (let i = 0; i < opList.fnArray.length; i++) {
+      const fn = opList.fnArray[i], args = opList.argsArray[i];
+      if (fn === OPS.save) { ctmStack.push(ctm); continue; }
+      if (fn === OPS.restore) { ctm = ctmStack.pop() || [1, 0, 0, 1, 0, 0]; continue; }
+      if (fn === OPS.transform) { ctm = mul(ctm, args); continue; }
+      if (fn === OPS.paintImageXObject || fn === OPS.paintImageXObjectRepeat || fn === OPS.paintInlineImageXObject) { hasImage = true; continue; }
+
+      if (fn === OPS.constructPath) {
+        // pdf.js packs path construction as [subOps[], coords[], (minMax)]
+        const subOps = args[0], coords = args[1];
+        if (!subOps || !coords) continue;
+        let k = 0;
+        for (const op of subOps) {
+          const n = coordCount[op];
+          if (n === undefined) { k = -1; break; } // unknown encoding: bail on this path
+          const a = [];
+          for (let j = 0; j < n; j++) a.push(coords[k + j]);
+          k += n;
+          if (op === OPS.moveTo) beginSub(a[0], a[1]);
+          else if (op === OPS.lineTo) {
+            if (!current) beginSub(a[0], a[1]);
+            else { current.points.push(apply(ctm, a[0], a[1])); cursor = [a[0], a[1]]; }
+          } else if (op === OPS.curveTo || op === OPS.curveTo2 || op === OPS.curveTo3) {
+            if (!current || !cursor) continue;
+            let c1, c2, end;
+            if (op === OPS.curveTo) { c1 = [a[0], a[1]]; c2 = [a[2], a[3]]; end = [a[4], a[5]]; }
+            else if (op === OPS.curveTo2) { c1 = cursor; c2 = [a[0], a[1]]; end = [a[2], a[3]]; }
+            else { c1 = [a[0], a[1]]; c2 = end = [a[2], a[3]]; }
+            const flat = [];
+            flattenCubic(apply(ctm, cursor[0], cursor[1]), apply(ctm, c1[0], c1[1]), apply(ctm, c2[0], c2[1]), apply(ctm, end[0], end[1]), flat);
+            current.points.push(...flat);
+            current.hadCurve = true;
+            cursor = end;
+          } else if (op === OPS.closePath) {
+            if (current) current.closed = true;
+          } else if (op === OPS.rectangle) {
+            const [x, y, w, h] = a;
+            current = {
+              points: [apply(ctm, x, y), apply(ctm, x + w, y), apply(ctm, x + w, y + h), apply(ctm, x, y + h)],
+              closed: true, hadCurve: false
+            };
+            pending.push(current);
+            cursor = [x, y];
+          }
+        }
+        continue;
+      }
+
+      // painting ops commit the pending path; endPath (clip-only) discards it
+      if (fn === OPS.stroke || fn === OPS.closeStroke || fn === OPS.fill ||
+          fn === OPS.eoFill || fn === OPS.fillStroke || fn === OPS.eoFillStroke ||
+          fn === OPS.closeFillStroke || fn === OPS.closeEOFillStroke) {
+        if (fn === OPS.closeStroke || fn === OPS.closeFillStroke || fn === OPS.closeEOFillStroke) {
+          for (const sp of pending) sp.closed = true;
+        }
+        subpaths.push(...pending);
+        pending = []; current = null;
+      } else if (fn === OPS.endPath) {
+        pending = []; current = null;
+      }
+    }
+
+    return {
+      entities: subpathsToEntities(subpaths, pageH, vb[0], vb[1]),
+      width: pageW, height: pageH, hasImage
+    };
+  }
+
+  return { extract };
+})();
+
+/* ================================================================
  * ImageProcessor - OpenCV.js based preprocessing pipeline
  * Runs on the main thread: OpenCV.js is compiled WASM and its ops are
  * near-native speed, so the actual UI-freeze risk in this app is the
@@ -1157,7 +1331,8 @@ App.DXFWriter = (function () {
     { name: 'GEOMETRY-LINES', color: 5 },
     { name: 'GEOMETRY-ARCS', color: 3 },
     { name: 'GEOMETRY-CIRCLES', color: 1 },
-    { name: 'GEOMETRY-SPLINES', color: 6 }
+    { name: 'GEOMETRY-SPLINES', color: 6 },
+    { name: 'GEOMETRY-POINTS', color: 2 }
   ];
 
   function unitScale(units, dpi) {
@@ -1197,7 +1372,11 @@ App.DXFWriter = (function () {
   }
 
   function writeEntity(lines, ent, imgHeight, scale) {
-    if (ent.type === 'LINE') {
+    if (ent.type === 'POINT') {
+      const [x, y] = xy(ent.x, ent.y, imgHeight, scale);
+      line(lines, 0, 'POINT'); line(lines, 8, ent.layer);
+      line(lines, 10, x.toFixed(4)); line(lines, 20, y.toFixed(4)); line(lines, 30, 0);
+    } else if (ent.type === 'LINE') {
       const [x1, y1] = xy(ent.x1, ent.y1, imgHeight, scale);
       const [x2, y2] = xy(ent.x2, ent.y2, imgHeight, scale);
       line(lines, 0, 'LINE'); line(lines, 8, ent.layer);
@@ -1368,11 +1547,17 @@ App.Renderer = (function () {
     ctx.fillStyle = '#0b0d0f';
     ctx.fillRect(0, 0, s.width, s.height);
     const lw = 1 / view.scale;
-    const colors = { 'GEOMETRY-LINES': '#4da3ff', 'GEOMETRY-ARCS': '#5ec26a', 'GEOMETRY-CIRCLES': '#ff6b6b', 'GEOMETRY-SPLINES': '#e8b84b' };
+    const colors = { 'GEOMETRY-LINES': '#4da3ff', 'GEOMETRY-ARCS': '#5ec26a', 'GEOMETRY-CIRCLES': '#ff6b6b', 'GEOMETRY-SPLINES': '#e8b84b', 'GEOMETRY-POINTS': '#e8b84b' };
     for (const ent of s.entities) {
       ctx.strokeStyle = colors[ent.layer] || '#ccc';
       ctx.lineWidth = Math.max(lw, 0.4);
       ctx.beginPath();
+      if (ent.type === 'POINT') {
+        ctx.fillStyle = colors[ent.layer] || '#ccc';
+        ctx.arc(ent.x, ent.y, Math.max(lw * 2, 1), 0, Math.PI * 2);
+        ctx.fill();
+        continue;
+      }
       if (ent.type === 'LINE') {
         ctx.moveTo(ent.x1, ent.y1); ctx.lineTo(ent.x2, ent.y2);
       } else if (ent.type === 'LWPOLYLINE') {
@@ -1515,7 +1700,7 @@ App.UIController = (function () {
 
   function resetDownstream() {
     App.State.binaryImage = null; App.State.skeletonImage = null;
-    App.State.graph = null; App.State.geometry = null;
+    App.State.graph = null; App.State.geometry = null; App.State.sourceSize = null;
     $('btnSkeletonize').disabled = true;
     $('btnFitGeometry').disabled = true;
     $('btnExport').disabled = true; $('btnExport2').disabled = true;
@@ -1580,6 +1765,7 @@ App.UIController = (function () {
       const opts = readOpts();
       const entities = App.GeometryFitter.fit(graph, opts);
       App.State.geometry = entities;
+      App.State.sourceSize = { width: App.State.skeletonImage.width, height: App.State.skeletonImage.height };
       App.Renderer.setSource('vectors', { kind: 'vector', width: App.State.skeletonImage.width, height: App.State.skeletonImage.height, entities });
       App.Status.ok('Fitted ' + entities.length + ' entities from ' + graph.branches.length + ' traced branches.');
       $('btnExport').disabled = false; $('btnExport2').disabled = false;
@@ -1612,11 +1798,36 @@ App.UIController = (function () {
     };
   }
 
-  /** One-click Render -> Preprocess -> Skeletonize -> Fit Geometry with DPI-scaled defaults. */
+  /**
+   * One-click processing. CAD-exported PDFs carry their geometry as native
+   * vector paths, so try pulling those straight out of the content stream
+   * first — exact, instant, and no OpenCV/raster memory cost. Only fall back
+   * to the raster pipeline (render -> preprocess -> skeletonize -> fit) when
+   * the page is really a scanned bitmap. A scan often still has a couple of
+   * vector paths (page border box), so a page that contains a raster image
+   * needs more than a handful of paths before we trust the vector route.
+   */
   async function runAutoProcess() {
     if (!App.State.pdfDoc) return;
     $('btnAuto').disabled = true;
     try {
+      App.Status.busy('Checking for native vector content…');
+      try {
+        const vec = await App.VectorExtractor.extract(App.State.pageIndex);
+        const trustVector = vec.entities.length > 0 && (!vec.hasImage || vec.entities.length >= 5);
+        if (trustVector) {
+          App.State.geometry = vec.entities;
+          App.State.dpi = 72; // coordinates are PDF points
+          App.State.sourceSize = { width: vec.width, height: vec.height };
+          App.Renderer.setSource('vectors', { kind: 'vector', width: vec.width, height: vec.height, entities: vec.entities });
+          $('btnExport').disabled = false; $('btnExport2').disabled = false;
+          switchTab('vectors');
+          App.Status.ok('Extracted ' + vec.entities.length + ' entities directly from PDF vector data — exact geometry, no raster processing needed. Export DXF when ready.');
+          return;
+        }
+        if (vec.hasImage) App.Status.set('No usable native vector data (scanned page) — running raster pipeline…');
+      } catch (e) { /* extraction is best-effort; fall through to raster */ }
+
       await renderPage();
       const dpi = readOpts().dpi;
       const d = scaleDpiDefaults(dpi);
@@ -1648,11 +1859,11 @@ App.UIController = (function () {
   }
 
   function runExport() {
-    if (!App.State.geometry) return;
+    if (!App.State.geometry || !App.State.sourceSize) return;
     const opts = readOpts();
-    const dxf = App.DXFWriter.build(App.State.geometry, App.State.skeletonImage.height, opts.units, App.State.dpi);
+    const dxf = App.DXFWriter.build(App.State.geometry, App.State.sourceSize.height, opts.units, App.State.dpi);
     App.State.dxfString = dxf;
-    App.Renderer.setSource('dxfpreview', { kind: 'vector', width: App.State.skeletonImage.width, height: App.State.skeletonImage.height, entities: App.State.geometry });
+    App.Renderer.setSource('dxfpreview', { kind: 'vector', width: App.State.sourceSize.width, height: App.State.sourceSize.height, entities: App.State.geometry });
     App.DXFWriter.download(dxf, 'drawing.dxf');
     App.Status.ok('DXF exported (' + App.State.geometry.length + ' entities).');
   }
