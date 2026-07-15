@@ -2,7 +2,7 @@
   "name": "PDF to DXF Vectorizer",
   "slug": "pdf-to-dxf",
   "path": "/apps/pdf-to-dxf/",
-  "icon": "file-output",
+  "icon": "ruler",
   "description": "Convert PDF blueprint pages into vectorized DXF line drawings.",
   "status": "live",
   "sort_order": 24,
