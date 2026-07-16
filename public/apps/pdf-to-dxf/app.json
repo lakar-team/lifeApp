@@ -3,8 +3,16 @@
   "slug": "pdf-to-dxf",
   "path": "/apps/pdf-to-dxf/",
   "icon": "ruler",
-  "description": "Convert PDF blueprint pages into vectorized DXF line drawings.",
+  "description": "Trace scanned blueprints (PDF or PNG) into millimetre-accurate DXF drawings, server-side at native scan resolution.",
   "status": "live",
   "sort_order": 24,
-  "tags": ["architecture", "blueprints", "pdf", "dxf", "cad", "vectorize"]
+  "tags": [
+    "architecture",
+    "blueprints",
+    "pdf",
+    "png",
+    "dxf",
+    "cad",
+    "vectorize"
+  ]
 }

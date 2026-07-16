@@ -9,1934 +9,284 @@
   --bg:#0e1013; --bg-panel:#15181c; --bg-elev:#1d2126; --bg-elev2:#252a30;
   --border:#2a3038; --text:#e6e9ec; --text-dim:#8c96a1; --text-dim2:#5f6a75;
   --accent:#4da3ff; --accent-dim:#2c5c8a; --danger:#ff6b6b; --good:#5ec26a; --warn:#e8b84b;
-  --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
 }
 *,*::before,*::after{box-sizing:border-box}
-html,body{height:100%}
 body{
-  margin:0; overflow:hidden; background:var(--bg); color:var(--text);
+  margin:0; min-height:100vh; background:var(--bg); color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
-  font-size:13px; -webkit-font-smoothing:antialiased;
+  font-size:14px; -webkit-font-smoothing:antialiased;
 }
-button,input,select{font:inherit;color:inherit}
+main{max-width:860px; margin:0 auto; padding:28px 20px 60px}
+h1{font-size:18px; font-weight:600; margin:0 0 4px}
+h1 span{color:var(--text-dim2); font-weight:400; font-size:13px}
+.card{background:var(--bg-panel); border:1px solid var(--border); border-radius:8px; padding:18px; margin-top:16px}
+.card h2{font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-dim2); margin:0 0 12px}
 button{
   background:var(--bg-elev2); border:1px solid var(--border); color:var(--text);
-  padding:5px 10px; border-radius:5px; cursor:pointer;
+  padding:8px 16px; border-radius:6px; cursor:pointer; font:inherit;
 }
 button:hover:not(:disabled){background:var(--accent-dim); border-color:var(--accent)}
 button:disabled{opacity:.4; cursor:not-allowed}
-button.primary{background:var(--accent-dim); border-color:var(--accent)}
+button.primary{background:var(--accent-dim); border-color:var(--accent); font-weight:600}
 button.primary:hover:not(:disabled){background:var(--accent)}
-input[type="number"],input[type="text"],select{
+input[type="text"]{
   background:var(--bg); border:1px solid var(--border); color:var(--text);
-  padding:4px 6px; border-radius:4px; width:100%;
+  padding:8px 10px; border-radius:6px; font:inherit; width:100%;
+  font-family:var(--mono); font-size:13px;
 }
-input[type="range"]{width:100%; accent-color:var(--accent)}
-input[type="checkbox"]{accent-color:var(--accent)}
-label.row{display:flex; align-items:center; justify-content:space-between; gap:8px; margin:6px 0; font-size:12px; color:var(--text-dim)}
-label.row .val{color:var(--text); font-family:var(--mono); font-size:11px; min-width:34px; text-align:right}
-label.row > span:first-child{flex:0 0 auto}
-label.row > input,label.row > select{flex:1 1 auto; max-width:60%}
-label.check{display:flex; align-items:center; gap:6px; margin:6px 0; font-size:12px; color:var(--text-dim); cursor:pointer}
-
-#app{display:flex; flex-direction:column; height:100vh}
-
-#topbar{
-  display:flex; align-items:center; gap:10px; padding:8px 12px;
-  border-bottom:1px solid var(--border); background:var(--bg-panel); flex:0 0 auto;
+.row{display:flex; gap:8px; align-items:center}
+.hint{color:var(--text-dim2); font-size:12px; line-height:1.5; margin-top:8px}
+.hint a{color:var(--accent)}
+#drop{
+  border:2px dashed var(--border); border-radius:8px; padding:36px 20px;
+  text-align:center; color:var(--text-dim); cursor:pointer; transition:border-color .15s;
 }
-#topbar h1{font-size:13px; font-weight:600; margin:0; color:var(--text-dim); white-space:nowrap}
-#topbar .spacer{flex:1}
-#pageNav{display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:12px}
-#pageNav button{padding:3px 8px}
-
-#body{flex:1; display:flex; min-height:0}
-
-#sidebar{
-  width:320px; flex:0 0 auto; overflow-y:auto; border-right:1px solid var(--border);
-  background:var(--bg-panel); padding:8px;
+#drop:hover,#drop.over{border-color:var(--accent); color:var(--text)}
+#drop .big{font-size:15px; margin-bottom:6px}
+#stages{list-style:none; margin:0; padding:0}
+#stages li{
+  display:flex; align-items:baseline; gap:10px; padding:7px 0;
+  border-bottom:1px solid var(--bg-elev); font-size:13px;
 }
-.panel{border:1px solid var(--border); border-radius:6px; margin-bottom:8px; background:var(--bg)}
-.panel > summary{
-  padding:8px 10px; cursor:pointer; font-weight:600; font-size:12px; color:var(--text);
-  list-style:none; display:flex; align-items:center; justify-content:space-between;
-  user-select:none;
-}
-.panel > summary::-webkit-details-marker{display:none}
-.panel > summary::after{content:'\25BE'; color:var(--text-dim2); transition:transform .15s}
-.panel:not([open]) > summary::after{transform:rotate(-90deg)}
-.panel-body{padding:2px 10px 10px}
-.hint{color:var(--text-dim2); font-size:11px; margin:2px 0 6px; line-height:1.4}
-.btnrow{display:flex; gap:6px; margin-top:6px}
-.btnrow button{flex:1}
-
-#thumbs{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px}
-.thumb{
-  width:52px; height:70px; object-fit:contain; background:#000; border:2px solid var(--border);
-  border-radius:3px; cursor:pointer;
-}
-.thumb.active{border-color:var(--accent)}
-
-#main{flex:1; display:flex; flex-direction:column; min-width:0; min-height:0}
-#tabs{display:flex; border-bottom:1px solid var(--border); background:var(--bg-panel); flex:0 0 auto; overflow-x:auto}
-.tab{
-  background:transparent; border:none; border-radius:0; padding:9px 16px; color:var(--text-dim);
-  border-bottom:2px solid transparent; white-space:nowrap;
-}
-.tab.active{color:var(--text); border-bottom-color:var(--accent); background:var(--bg-elev)}
-.tab:hover:not(.active){background:var(--bg-elev)}
-
-#viewerWrap{
-  flex:1; position:relative; overflow:hidden; min-height:0;
-  background:
-    linear-gradient(45deg,#181b1f 25%,transparent 25%),
-    linear-gradient(-45deg,#181b1f 25%,transparent 25%),
-    linear-gradient(45deg,transparent 75%,#181b1f 75%),
-    linear-gradient(-45deg,transparent 75%,#181b1f 75%);
-  background-size:20px 20px; background-position:0 0,0 10px,10px -10px,-10px 0px; background-color:#0b0d0f;
-}
-#viewerCanvas{position:absolute; top:0; left:0; cursor:grab; touch-action:none}
-#viewerCanvas.grabbing{cursor:grabbing}
-#viewerControls{
-  position:absolute; right:10px; bottom:10px; display:flex; gap:4px;
-  background:var(--bg-panel); border:1px solid var(--border); border-radius:6px; padding:4px;
-}
-#viewerControls button{padding:4px 9px; font-size:12px}
-#emptyState{
-  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-  color:var(--text-dim2); font-size:13px; text-align:center; pointer-events:none;
-}
-
-#statusbar{
-  flex:0 0 auto; display:flex; align-items:center; gap:10px; padding:6px 12px;
-  border-top:1px solid var(--border); background:var(--bg-panel); font-size:11px; color:var(--text-dim);
-}
-#progressBarWrap{width:180px; height:6px; background:var(--bg-elev2); border-radius:3px; overflow:hidden; flex:0 0 auto}
-#progressBar{height:100%; width:0%; background:var(--accent); transition:width .15s linear}
-#statusText{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:var(--mono)}
-#statusText.err{color:var(--danger)}
-#statusText.ok{color:var(--good)}
-#zoomLabel{font-family:var(--mono); min-width:44px; text-align:right}
-
-.section-title{font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-dim2); margin:10px 0 4px}
-.grid2{display:grid; grid-template-columns:1fr 1fr; gap:6px}
+#stages li:last-child{border-bottom:none}
+#stages .mark{width:18px; flex:0 0 auto; text-align:center}
+#stages .name{width:110px; flex:0 0 auto; color:var(--text-dim)}
+#stages li.active .name{color:var(--text); font-weight:600}
+#stages li.done .mark{color:var(--good)}
+#stages li.active .mark{color:var(--accent)}
+#stages .detail{color:var(--text-dim2); font-family:var(--mono); font-size:12px; flex:1; overflow-wrap:anywhere}
+#stages li.active .detail{color:var(--text-dim)}
+.statusline{font-family:var(--mono); font-size:12px; color:var(--text-dim); margin-top:10px}
+.statusline.err{color:var(--danger); white-space:pre-wrap}
+.statusline.ok{color:var(--good)}
+#result img{max-width:100%; border:1px solid var(--border); border-radius:6px; margin-top:10px; background:#fff}
+.metrics{display:flex; gap:22px; margin:10px 0; flex-wrap:wrap}
+.metric .v{font-size:20px; font-weight:600; font-family:var(--mono)}
+.metric .k{font-size:11px; color:var(--text-dim2); text-transform:uppercase; letter-spacing:.05em}
+.dl{display:inline-block; background:var(--accent-dim); border:1px solid var(--accent);
+  color:var(--text); text-decoration:none; font-weight:600; padding:10px 20px; border-radius:6px; margin-top:4px}
+.dl:hover{background:var(--accent)}
+details{margin-top:10px}
+summary{cursor:pointer; color:var(--text-dim); font-size:13px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{display:inline-block; animation:spin 1.2s linear infinite}
 </style>
 </head>
 <body>
-<div id="app">
+<main>
+  <h1>PDF &rarr; DXF Vectorizer <span>/ scanned engineering drawings, server-side</span></h1>
+  <div class="hint">Upload a scanned drawing (PDF or PNG/JPG). The server traces every line, arc,
+  circle and dot at the scan's native resolution and returns a millimetre-accurate DXF plus a
+  visual verification overlay. Large scans take a few minutes &mdash; the progress below shows
+  real pipeline counters, not an animation.</div>
 
-  <header id="topbar">
-    <h1>PDF &rarr; DXF Vectorizer <span style="color:var(--text-dim2); font-weight:400">/ scanned engineering drawings</span></h1>
-    <div class="spacer"></div>
-    <div id="pageNav" style="display:none">
-      <button id="prevPage">&lsaquo;</button>
-      <span id="pageLabel">-</span>
-      <button id="nextPage">&rsaquo;</button>
+  <div class="card" id="setupCard">
+    <h2>Backend server</h2>
+    <div class="row">
+      <input type="text" id="apiUrl" placeholder="https://your-backend.example.com or http://localhost:8000">
+      <button id="btnTest">Test</button>
     </div>
-    <button id="btnOpen" class="primary">Open PDF&hellip;</button>
-    <input type="file" id="fileInput" accept="application/pdf" hidden>
-    <button id="btnExport" disabled>Export DXF</button>
-  </header>
-
-  <div id="body">
-    <aside id="sidebar">
-
-      <div class="panel" style="padding:10px">
-        <button id="btnAuto" class="primary" style="width:100%; padding:10px; font-weight:600" disabled>&#9654; Auto-Process (Recommended)</button>
-        <div class="hint" style="margin:8px 0 0">Runs Render &rarr; Preprocess &rarr; Skeletonize &rarr; Fit Geometry in one click, with settings scaled to your DPI. Review the result in the <b>Vectors</b> tab, then adjust any slider below and re-run just that stage to refine it.</div>
-      </div>
-
-      <details class="panel" open>
-        <summary>1. Render</summary>
-        <div class="panel-body">
-          <div class="hint">Extracts the embedded scan bitmap when possible; otherwise rasterizes the PDF page at the DPI below.</div>
-          <label class="check"><input type="checkbox" id="optUseEmbedded" checked> Prefer embedded bitmap if available</label>
-          <label class="row"><span>Render DPI</span><input type="range" id="optDpi" min="72" max="1200" step="1" value="600"><span class="val" id="optDpiVal">600</span></label>
-          <div class="btnrow"><button id="btnRender" class="primary">Render Page</button></div>
-          <div id="thumbs"></div>
-        </div>
-      </details>
-
-      <details class="panel" open>
-        <summary>2. Preprocess</summary>
-        <div class="panel-body">
-          <label class="check"><input type="checkbox" id="optInvert"> Invert image</label>
-          <label class="check"><input type="checkbox" id="optDeskew"> Deskew (Hough line angle)</label>
-
-          <div class="section-title">Blur</div>
-          <label class="row"><span>Gaussian radius</span><input type="range" id="optGauss" min="0" max="9" step="1" value="0"><span class="val" id="optGaussVal">0</span></label>
-          <label class="row"><span>Median radius</span><input type="range" id="optMedian" min="0" max="9" step="1" value="0"><span class="val" id="optMedianVal">0</span></label>
-
-          <div class="section-title">Threshold</div>
-          <label class="row"><span>Mode</span>
-            <select id="optThreshMode">
-              <option value="adaptive" selected>Adaptive</option>
-              <option value="otsu">Otsu</option>
-              <option value="manual">Manual</option>
-            </select>
-          </label>
-          <div id="grpAdaptive">
-            <label class="row"><span>Block size</span><input type="range" id="optAdaptiveBlock" min="3" max="99" step="2" value="35"><span class="val" id="optAdaptiveBlockVal">35</span></label>
-            <label class="row"><span>C offset</span><input type="range" id="optAdaptiveC" min="-30" max="30" step="1" value="10"><span class="val" id="optAdaptiveCVal">10</span></label>
-          </div>
-          <div id="grpManual" style="display:none">
-            <label class="row"><span>Manual level</span><input type="range" id="optManualThresh" min="0" max="255" step="1" value="128"><span class="val" id="optManualThreshVal">128</span></label>
-          </div>
-
-          <div class="section-title">Cleanup</div>
-          <label class="row"><span>Despeckle min px</span><input type="range" id="optDespeckle" min="0" max="60" step="1" value="4"><span class="val" id="optDespeckleVal">4</span></label>
-          <label class="row"><span>Opening kernel</span><input type="range" id="optOpen" min="0" max="7" step="1" value="0"><span class="val" id="optOpenVal">0</span></label>
-          <label class="row"><span>Closing kernel</span><input type="range" id="optClose" min="0" max="7" step="1" value="1"><span class="val" id="optCloseVal">1</span></label>
-          <label class="row"><span>Min component area</span><input type="range" id="optMinComponent" min="0" max="200" step="1" value="6"><span class="val" id="optMinComponentVal">6</span></label>
-
-          <div class="btnrow"><button id="btnPreprocess" class="primary">Run Preprocess</button></div>
-        </div>
-      </details>
-
-      <details class="panel">
-        <summary>3. Skeletonize</summary>
-        <div class="panel-body">
-          <div class="hint">Zhang&ndash;Suen thinning to a 1px centerline skeleton, run in a background worker.</div>
-          <div class="btnrow"><button id="btnSkeletonize" class="primary" disabled>Skeletonize</button></div>
-        </div>
-      </details>
-
-      <details class="panel">
-        <summary>4. Fit Geometry</summary>
-        <div class="panel-body">
-          <label class="row"><span>Simplify epsilon (px)</span><input type="range" id="optEpsilon" min="0.2" max="6" step="0.1" value="1.2"><span class="val" id="optEpsilonVal">1.2</span></label>
-          <label class="row"><span>Angle snap (deg)</span><input type="range" id="optAngleSnap" min="0" max="8" step="0.5" value="2.5"><span class="val" id="optAngleSnapVal">2.5</span></label>
-          <label class="row"><span>Circle fit tol (px)</span><input type="range" id="optCircleTol" min="0.2" max="4" step="0.1" value="1.0"><span class="val" id="optCircleTolVal">1.0</span></label>
-          <label class="check"><input type="checkbox" id="optFitLines" checked> Fit lines</label>
-          <label class="check"><input type="checkbox" id="optFitArcs" checked> Fit arcs / circles</label>
-          <label class="check"><input type="checkbox" id="optFitSplines" checked> Fit splines (fallback)</label>
-          <div class="btnrow"><button id="btnFitGeometry" class="primary" disabled>Fit Geometry</button></div>
-        </div>
-      </details>
-
-      <details class="panel">
-        <summary>5. Export DXF</summary>
-        <div class="panel-body">
-          <label class="row"><span>Units</span>
-            <select id="optUnits">
-              <option value="mm" selected>Millimetres</option>
-              <option value="in">Inches</option>
-              <option value="px">Pixels</option>
-            </select>
-          </label>
-          <div class="hint">Conversion uses the render DPI as the pixel scale reference.</div>
-          <div class="btnrow"><button id="btnExport2" class="primary" disabled>Export DXF&hellip;</button></div>
-        </div>
-      </details>
-
-    </aside>
-
-    <main id="main">
-      <div id="tabs">
-        <button class="tab active" data-tab="original">Original</button>
-        <button class="tab" data-tab="threshold">Threshold</button>
-        <button class="tab" data-tab="binary">Binary</button>
-        <button class="tab" data-tab="skeleton">Skeleton</button>
-        <button class="tab" data-tab="vectors">Vectors</button>
-        <button class="tab" data-tab="dxfpreview">DXF Preview</button>
-      </div>
-      <div id="viewerWrap">
-        <canvas id="viewerCanvas"></canvas>
-        <div id="emptyState">Open a PDF to begin.</div>
-        <div id="viewerControls">
-          <button id="btnZoomOut">&minus;</button>
-          <span id="zoomLabel">100%</span>
-          <button id="btnZoomIn">+</button>
-          <button id="btnZoom100">100%</button>
-          <button id="btnZoomFit">Fit</button>
-        </div>
-      </div>
-    </main>
+    <div class="statusline" id="apiStatus"></div>
+    <div class="hint">The conversion engine runs as a separate Python service (this static site can't
+    do minutes of number-crunching). Enter its URL once &mdash; it's remembered in this browser.
+    Running it yourself: <code>docker run -p 8000:8000 &lt;image&gt;</code> or
+    <code>uvicorn app.main:app</code> from <code>backend/pdf-to-dxf/</code> in the repo, then use
+    <code>http://localhost:8000</code>.</div>
   </div>
 
-  <footer id="statusbar">
-    <div id="progressBarWrap"><div id="progressBar"></div></div>
-    <div id="statusText">Ready. Load pdf.js and OpenCV.js before opening a file.</div>
-  </footer>
+  <div class="card">
+    <h2>Convert</h2>
+    <div id="drop">
+      <div class="big" id="dropLabel">Drop a PDF / PNG here or click to choose</div>
+      <div id="fileName" style="font-family:var(--mono); font-size:12px"></div>
+    </div>
+    <input type="file" id="fileInput" accept="application/pdf,image/png,image/jpeg,image/webp,image/bmp,image/tiff" hidden>
+    <div class="row" style="margin-top:12px">
+      <button class="primary" id="btnConvert" disabled>Convert to DXF</button>
+      <div class="statusline" id="convStatus"></div>
+    </div>
+  </div>
 
-</div>
+  <div class="card" id="progressCard" style="display:none">
+    <h2>Pipeline progress</h2>
+    <ul id="stages"></ul>
+  </div>
 
-<!-- ============================================================== -->
-<!-- Third-party libraries                                            -->
-<!-- ============================================================== -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script>
-  if (window.pdfjsLib) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  }
-</script>
-<script async src="vendor/opencv.js" onload="window.__cvScriptLoaded=true" onerror="window.__cvScriptFailed=true"></script>
+  <div class="card" id="result" style="display:none">
+    <h2>Result</h2>
+    <div class="metrics" id="metrics"></div>
+    <a class="dl" id="dxfLink" href="#" download>Download DXF</a>
+    <div class="hint">Overlay: your scan in gray, the fitted vectors in red &mdash; they should sit
+    exactly on top of each other. Check it before opening CAD.</div>
+    <img id="overlayImg" alt="verification overlay">
+    <details><summary>Zoomed verification crops (scan vs vectors)</summary>
+      <img id="crop1" alt=""><img id="crop2" alt="">
+    </details>
+  </div>
+</main>
 
 <script>
 "use strict";
-/* ==================================================================
- * PDF -> DXF Vectorizer
- * Single-file client-side app. Modules are namespaced under App.*
- * Pipeline: PDFLoader/ImageExtractor -> ImageProcessor -> Skeletonizer
- *           -> GraphBuilder -> GeometryFitter -> DXFWriter, all driven
- *           by UIController and drawn through Renderer.
- * ================================================================== */
-const App = {};
+const $ = id => document.getElementById(id);
 
-/* ------------------------------------------------------------------
- * Small shared utilities
- * ------------------------------------------------------------------ */
-App.Util = (function () {
-  function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
-  function odd(n) { n = Math.round(n); return (n % 2 === 0) ? n + 1 : n; }
-  function dist(ax, ay, bx, by) { return Math.hypot(ax - bx, ay - by); }
-  function throttleRAF(fn) {
-    let scheduled = false, lastArgs = null;
-    return function (...args) {
-      lastArgs = args;
-      if (scheduled) return;
-      scheduled = true;
-      requestAnimationFrame(() => { scheduled = false; fn.apply(null, lastArgs); });
-    };
-  }
-  function debounce(fn, ms) {
-    let t = null;
-    return function (...args) {
-      clearTimeout(t);
-      t = setTimeout(() => fn.apply(null, args), ms);
-    };
-  }
-  return { clamp, odd, dist, throttleRAF, debounce };
-})();
+/* ---- backend url ---- */
+const saved = localStorage.getItem("pdf2dxf_api") || "http://localhost:8000";
+$("apiUrl").value = saved;
+const api = () => $("apiUrl").value.trim().replace(/\/+$/, "");
+$("apiUrl").addEventListener("change", () => localStorage.setItem("pdf2dxf_api", api()));
 
-/* ------------------------------------------------------------------
- * Status bar / progress reporting
- * ------------------------------------------------------------------ */
-App.Status = (function () {
-  const textEl = () => document.getElementById('statusText');
-  const barEl = () => document.getElementById('progressBar');
-  function set(msg, kind) {
-    const el = textEl();
-    el.textContent = msg;
-    el.className = kind ? kind : '';
-  }
-  function progress(pct) {
-    barEl().style.width = App.Util.clamp(pct, 0, 100) + '%';
-  }
-  function busy(msg) { set(msg, ''); progress(15); }
-  function ok(msg) { set(msg, 'ok'); progress(100); setTimeout(() => progress(0), 600); }
-  function err(msg) { set(msg, 'err'); progress(0); console.error(msg); }
-  return { set, progress, busy, ok, err };
-})();
-
-/* ------------------------------------------------------------------
- * AppState - central mutable state for the current document
- * ------------------------------------------------------------------ */
-App.State = {
-  pdfDoc: null,
-  numPages: 0,
-  pageIndex: 1,
-  dpi: 600,
-  // per-stage raster data, all as {width,height,data:Uint8ClampedArray(RGBA)} or Uint8Array binary masks
-  originalImage: null,   // RGBA ImageData-like
-  grayImage: null,       // {width,height,data:Uint8Array} single channel
-  thresholdImage: null,  // single channel preview (after blur, before binarize) - here we store binary too
-  binaryImage: null,     // {width,height,data:Uint8Array} 0/255 single channel (foreground=255)
-  skeletonImage: null,   // {width,height,data:Uint8Array} 0/255
-  graph: null,           // {nodes,branches}
-  geometry: null,        // array of entities
-  dxfString: null
-};
-
-/* ================================================================
- * PDFLoader + ImageExtractor
- * ================================================================ */
-App.PDFLoader = (function () {
-
-  // OpenCV.js runs in 32-bit WASM: preprocessing allocates several full-size
-  // mats (RGBA + gray + binary + 32-bit labels), so total pixels must stay
-  // well under the ~2GB heap ceiling. Large-format pages (A2/A1/A0) at the
-  // default 600dpi exceed it by far and die with "memory access out of
-  // bounds", so renders are capped and the effective DPI reported back —
-  // unit conversion must use the effective value or exports come out scaled.
-  const MAX_RENDER_PIXELS = 50e6;
-
-  async function loadFile(file) {
-    const buf = await file.arrayBuffer();
-    const loadingTask = pdfjsLib.getDocument({ data: buf });
-    const doc = await loadingTask.promise;
-    App.State.pdfDoc = doc;
-    App.State.numPages = doc.numPages;
-    App.State.pageIndex = 1;
-    return doc;
-  }
-
-  /** Render a page to an offscreen canvas at the given DPI (72dpi = 1x pdf unit). */
-  async function renderPageToCanvas(pageNum, dpi) {
-    const page = await App.State.pdfDoc.getPage(pageNum);
-    let scale = dpi / 72;
-    let viewport = page.getViewport({ scale });
-    let effectiveDpi = dpi;
-    if (viewport.width * viewport.height > MAX_RENDER_PIXELS) {
-      const shrink = Math.sqrt(MAX_RENDER_PIXELS / (viewport.width * viewport.height));
-      scale *= shrink;
-      effectiveDpi = dpi * shrink;
-      viewport = page.getViewport({ scale });
+async function testApi(silent) {
+  const el = $("apiStatus");
+  el.className = "statusline";
+  el.textContent = "checking…";
+  try {
+    const r = await fetch(api() + "/", { signal: AbortSignal.timeout(6000) });
+    const j = await r.json();
+    if (j.service === "pdf2dxf") {
+      el.className = "statusline ok";
+      el.textContent = "connected ✓";
+      return true;
     }
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(viewport.width));
-    canvas.height = Math.max(1, Math.round(viewport.height));
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    await page.render({ canvasContext: ctx, viewport }).promise;
-    return { canvas, effectiveDpi };
+    throw new Error("unexpected response");
+  } catch (e) {
+    el.className = "statusline err";
+    el.textContent = silent ? "" : "cannot reach backend at " + api() + " — is it running?";
+    return false;
   }
-
-  /**
-   * Best-effort extraction of an embedded raster image XObject from the page,
-   * bypassing PDF.js's page composition. Scanned engineering drawings are
-   * usually a single full-page monochrome/grayscale bitmap, so we look for
-   * the first paintImageXObject op and pull its decoded bitmap out of
-   * page.objs. This is inherently fragile across PDF producers, so any
-   * failure simply falls through to the DPI-rendered path.
-   */
-  async function tryExtractEmbeddedBitmap(pageNum) {
-    const page = await App.State.pdfDoc.getPage(pageNum);
-    const opList = await page.getOperatorList();
-    const OPS = pdfjsLib.OPS;
-    let objId = null;
-    for (let i = 0; i < opList.fnArray.length; i++) {
-      if (opList.fnArray[i] === OPS.paintImageXObject || opList.fnArray[i] === OPS.paintImageXObjectRepeat) {
-        objId = opList.argsArray[i][0];
-        break;
-      }
-    }
-    if (!objId) return null;
-
-    const imgData = await new Promise((resolve) => {
-      try {
-        if (page.objs.has && !page.objs.has(objId)) { resolve(null); return; }
-        page.objs.get(objId, resolve);
-      } catch (e) { resolve(null); }
-    });
-    if (!imgData) return null;
-
-    const canvas = document.createElement('canvas');
-    const w = imgData.width, h = imgData.height;
-    if (!w || !h) return null;
-    canvas.width = w; canvas.height = h;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-    if (imgData.bitmap) {
-      // Newer pdf.js versions may hand back a decoded ImageBitmap directly.
-      ctx.drawImage(imgData.bitmap, 0, 0);
-      return canvas;
-    }
-    if (!imgData.data) return null;
-
-    const out = ctx.createImageData(w, h);
-    const kind = imgData.kind; // 1=GRAYSCALE_1BPP, 2=RGB_24BPP, 3=RGBA_32BPP (pdfjsLib.ImageKind)
-    const src = imgData.data;
-    if (kind === 3 || src.length === w * h * 4) {
-      out.data.set(src.subarray ? src.subarray(0, w * h * 4) : src);
-    } else if (kind === 2 || src.length === w * h * 3) {
-      for (let i = 0, j = 0; i < w * h; i++, j += 3) {
-        out.data[i * 4] = src[j]; out.data[i * 4 + 1] = src[j + 1];
-        out.data[i * 4 + 2] = src[j + 2]; out.data[i * 4 + 3] = 255;
-      }
-    } else if (kind === 1 || src.length === Math.ceil(w / 8) * h) {
-      // 1 bit-per-pixel packed grayscale (typical for bilevel scans)
-      const stride = Math.ceil(w / 8);
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          const byte = src[y * stride + (x >> 3)];
-          const bit = (byte >> (7 - (x & 7))) & 1;
-          const v = bit ? 255 : 0; // 1 = white per PDF ImageMask convention (may be inverted by caller)
-          const p = (y * w + x) * 4;
-          out.data[p] = out.data[p + 1] = out.data[p + 2] = v; out.data[p + 3] = 255;
-        }
-      }
-    } else if (src.length === w * h) {
-      // 8bpp grayscale
-      for (let i = 0; i < w * h; i++) {
-        const v = src[i];
-        out.data[i * 4] = out.data[i * 4 + 1] = out.data[i * 4 + 2] = v; out.data[i * 4 + 3] = 255;
-      }
-    } else {
-      return null; // unrecognized layout, give up and let caller fall back to render()
-    }
-    ctx.putImageData(out, 0, 0);
-    return canvas;
-  }
-
-  /** Renders thumbnails for every page at a small fixed width for the sidebar. */
-  async function renderThumbnails(onThumb) {
-    const doc = App.State.pdfDoc;
-    for (let p = 1; p <= doc.numPages; p++) {
-      const page = await doc.getPage(p);
-      const vp0 = page.getViewport({ scale: 1 });
-      const scale = 48 / vp0.width;
-      const viewport = page.getViewport({ scale });
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(viewport.width));
-      canvas.height = Math.max(1, Math.round(viewport.height));
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-      await page.render({ canvasContext: ctx, viewport }).promise;
-      onThumb(p, canvas.toDataURL());
-    }
-  }
-
-  /** Downscale an oversized bitmap canvas to fit the pixel budget; s<1 shrinks coordinates and effective DPI alike. */
-  function capCanvas(canvas, dpi) {
-    const area = canvas.width * canvas.height;
-    if (area <= MAX_RENDER_PIXELS) return { canvas, effectiveDpi: dpi };
-    const s = Math.sqrt(MAX_RENDER_PIXELS / area);
-    const small = document.createElement('canvas');
-    small.width = Math.max(1, Math.round(canvas.width * s));
-    small.height = Math.max(1, Math.round(canvas.height * s));
-    small.getContext('2d', { willReadFrequently: true }).drawImage(canvas, 0, 0, small.width, small.height);
-    return { canvas: small, effectiveDpi: dpi * s };
-  }
-
-  /** Top-level entry point: returns a canvas for the requested page following the spec pipeline. */
-  async function getPageCanvas(pageNum, dpi, preferEmbedded) {
-    if (preferEmbedded) {
-      try {
-        const c = await tryExtractEmbeddedBitmap(pageNum);
-        if (c) {
-          const capped = capCanvas(c, dpi);
-          return { canvas: capped.canvas, source: 'embedded', effectiveDpi: capped.effectiveDpi };
-        }
-      } catch (e) { /* fall through to render */ }
-    }
-    const r = await renderPageToCanvas(pageNum, dpi);
-    return { canvas: r.canvas, source: 'rendered', effectiveDpi: r.effectiveDpi };
-  }
-
-  return { loadFile, getPageCanvas, renderThumbnails };
-})();
-
-/* ================================================================
- * VectorExtractor - pulls native vector geometry (lines, curves,
- * dots) straight out of the PDF content stream via pdf.js's operator
- * list. For CAD-exported PDFs this is exact and near-instant, and
- * skips the entire raster pipeline (render/OpenCV/skeletonize) that
- * exists only for scanned bitmaps.
- * Coordinates are kept in PDF points (72/inch) but flipped to the
- * y-down space the Renderer and DXFWriter already expect, so the
- * existing display/export code works unchanged with dpi=72.
- * ================================================================ */
-App.VectorExtractor = (function () {
-
-  function mul(m1, m2) {
-    return [
-      m1[0] * m2[0] + m1[2] * m2[1],
-      m1[1] * m2[0] + m1[3] * m2[1],
-      m1[0] * m2[2] + m1[2] * m2[3],
-      m1[1] * m2[2] + m1[3] * m2[3],
-      m1[0] * m2[4] + m1[2] * m2[5] + m1[4],
-      m1[1] * m2[4] + m1[3] * m2[5] + m1[5]
-    ];
-  }
-  function apply(m, x, y) { return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]; }
-
-  function flattenCubic(p0, c1, c2, p3, out) {
-    // fixed 16-segment flattening: plenty below any plot tolerance
-    for (let i = 1; i <= 16; i++) {
-      const t = i / 16, u = 1 - t;
-      out.push([
-        u * u * u * p0[0] + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t * t * t * p3[0],
-        u * u * u * p0[1] + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t * t * t * p3[1]
-      ]);
-    }
-  }
-
-  /** Convert committed subpaths to DXF-ready entities (pt units, y-down). */
-  function subpathsToEntities(subpaths, pageH, x0, y0) {
-    const entities = [];
-    for (const sp of subpaths) {
-      // dedupe consecutive identical points, flip to y-down page space
-      const pts = [];
-      for (const [px, py] of sp.points) {
-        const x = px - x0, y = pageH - (py - y0);
-        const last = pts[pts.length - 1];
-        if (!last || Math.abs(last[0] - x) > 1e-6 || Math.abs(last[1] - y) > 1e-6) pts.push([x, y]);
-      }
-      // Paths drawn back to their start point without an explicit closePath
-      // op (common CAD-export style) are geometrically closed all the same.
-      let closed = !!sp.closed;
-      if (pts.length > 2) {
-        const a = pts[0], b = pts[pts.length - 1];
-        if (Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.01) { closed = true; pts.pop(); }
-      }
-      // A zero-length stroke (round-cap pen dot) collapses to one point after
-      // dedupe — that's a deliberate dot in the drawing, not noise.
-      if (pts.length === 1) {
-        entities.push({ type: 'POINT', x: pts[0][0], y: pts[0][1], layer: 'GEOMETRY-POINTS' });
-        continue;
-      }
-      if (pts.length < 2) continue;
-      if (pts.length === 2 && !closed) {
-        entities.push({ type: 'LINE', x1: pts[0][0], y1: pts[0][1], x2: pts[1][0], y2: pts[1][1], layer: 'GEOMETRY-LINES' });
-        continue;
-      }
-      if (closed && sp.hadCurve && pts.length >= 8) {
-        const circle = App.GeometryFitter.fitCircle(pts);
-        if (circle && circle.rms <= Math.max(0.05, circle.r * 0.02)) {
-          entities.push({ type: 'CIRCLE', cx: circle.cx, cy: circle.cy, r: circle.r, layer: 'GEOMETRY-CIRCLES' });
-          continue;
-        }
-      }
-      entities.push({ type: 'LWPOLYLINE', points: pts, closed, layer: 'GEOMETRY-LINES' });
-    }
-    return entities;
-  }
-
-  async function extract(pageNum) {
-    const page = await App.State.pdfDoc.getPage(pageNum);
-    const opList = await page.getOperatorList();
-    const OPS = pdfjsLib.OPS;
-    const vb = page.getViewport({ scale: 1 }).viewBox; // [x0,y0,x1,y1] in pt
-    const pageW = vb[2] - vb[0], pageH = vb[3] - vb[1];
-
-    const coordCount = {};
-    coordCount[OPS.moveTo] = 2; coordCount[OPS.lineTo] = 2;
-    coordCount[OPS.curveTo] = 6; coordCount[OPS.curveTo2] = 4;
-    coordCount[OPS.curveTo3] = 4; coordCount[OPS.closePath] = 0;
-    coordCount[OPS.rectangle] = 4;
-
-    let ctm = [1, 0, 0, 1, 0, 0];
-    const ctmStack = [];
-    let pending = [];   // subpaths accumulated since the last paint op
-    let current = null; // { points, closed, hadCurve }
-    let cursor = null;  // current point in user space (pre-CTM)
-    const subpaths = [];
-    let hasImage = false;
-
-    function beginSub(x, y) {
-      current = { points: [apply(ctm, x, y)], closed: false, hadCurve: false };
-      pending.push(current);
-      cursor = [x, y];
-    }
-
-    for (let i = 0; i < opList.fnArray.length; i++) {
-      const fn = opList.fnArray[i], args = opList.argsArray[i];
-      if (fn === OPS.save) { ctmStack.push(ctm); continue; }
-      if (fn === OPS.restore) { ctm = ctmStack.pop() || [1, 0, 0, 1, 0, 0]; continue; }
-      if (fn === OPS.transform) { ctm = mul(ctm, args); continue; }
-      if (fn === OPS.paintImageXObject || fn === OPS.paintImageXObjectRepeat || fn === OPS.paintInlineImageXObject) { hasImage = true; continue; }
-
-      if (fn === OPS.constructPath) {
-        // pdf.js packs path construction as [subOps[], coords[], (minMax)]
-        const subOps = args[0], coords = args[1];
-        if (!subOps || !coords) continue;
-        let k = 0;
-        for (const op of subOps) {
-          const n = coordCount[op];
-          if (n === undefined) { k = -1; break; } // unknown encoding: bail on this path
-          const a = [];
-          for (let j = 0; j < n; j++) a.push(coords[k + j]);
-          k += n;
-          if (op === OPS.moveTo) beginSub(a[0], a[1]);
-          else if (op === OPS.lineTo) {
-            if (!current) beginSub(a[0], a[1]);
-            else { current.points.push(apply(ctm, a[0], a[1])); cursor = [a[0], a[1]]; }
-          } else if (op === OPS.curveTo || op === OPS.curveTo2 || op === OPS.curveTo3) {
-            if (!current || !cursor) continue;
-            let c1, c2, end;
-            if (op === OPS.curveTo) { c1 = [a[0], a[1]]; c2 = [a[2], a[3]]; end = [a[4], a[5]]; }
-            else if (op === OPS.curveTo2) { c1 = cursor; c2 = [a[0], a[1]]; end = [a[2], a[3]]; }
-            else { c1 = [a[0], a[1]]; c2 = end = [a[2], a[3]]; }
-            const flat = [];
-            flattenCubic(apply(ctm, cursor[0], cursor[1]), apply(ctm, c1[0], c1[1]), apply(ctm, c2[0], c2[1]), apply(ctm, end[0], end[1]), flat);
-            current.points.push(...flat);
-            current.hadCurve = true;
-            cursor = end;
-          } else if (op === OPS.closePath) {
-            if (current) current.closed = true;
-          } else if (op === OPS.rectangle) {
-            const [x, y, w, h] = a;
-            current = {
-              points: [apply(ctm, x, y), apply(ctm, x + w, y), apply(ctm, x + w, y + h), apply(ctm, x, y + h)],
-              closed: true, hadCurve: false
-            };
-            pending.push(current);
-            cursor = [x, y];
-          }
-        }
-        continue;
-      }
-
-      // painting ops commit the pending path; endPath (clip-only) discards it
-      if (fn === OPS.stroke || fn === OPS.closeStroke || fn === OPS.fill ||
-          fn === OPS.eoFill || fn === OPS.fillStroke || fn === OPS.eoFillStroke ||
-          fn === OPS.closeFillStroke || fn === OPS.closeEOFillStroke) {
-        if (fn === OPS.closeStroke || fn === OPS.closeFillStroke || fn === OPS.closeEOFillStroke) {
-          for (const sp of pending) sp.closed = true;
-        }
-        subpaths.push(...pending);
-        pending = []; current = null;
-      } else if (fn === OPS.endPath) {
-        pending = []; current = null;
-      }
-    }
-
-    return {
-      entities: subpathsToEntities(subpaths, pageH, vb[0], vb[1]),
-      width: pageW, height: pageH, hasImage
-    };
-  }
-
-  return { extract };
-})();
-
-/* ================================================================
- * ImageProcessor - OpenCV.js based preprocessing pipeline
- * Runs on the main thread: OpenCV.js is compiled WASM and its ops are
- * near-native speed, so the actual UI-freeze risk in this app is the
- * pure-JS thinning/graph/geometry stages, which are the ones offloaded
- * to a Web Worker (see Skeletonizer below).
- * ================================================================ */
-App.ImageProcessor = (function () {
-
-  function cvReady() { return !!(window.cv && cv.Mat); }
-
-  function matFromCanvas(canvas) {
-    return cv.imread(canvas);
-  }
-
-  function toGray(srcMat) {
-    const gray = new cv.Mat();
-    if (srcMat.channels() === 1) srcMat.copyTo(gray);
-    else cv.cvtColor(srcMat, gray, cv.COLOR_RGBA2GRAY);
-    return gray;
-  }
-
-  function deskew(grayMat) {
-    // Estimate skew via Hough line transform on a Canny edge map, using the
-    // median angle (mod 90deg) of long lines as the correction angle.
-    const edges = new cv.Mat();
-    cv.Canny(grayMat, edges, 50, 150);
-    const lines = new cv.Mat();
-    cv.HoughLines(edges, lines, 1, Math.PI / 180, Math.max(60, Math.round(grayMat.cols / 8)));
-    const angles = [];
-    for (let i = 0; i < lines.rows; i++) {
-      const theta = lines.data32F[i * 2 + 1];
-      let deg = (theta * 180 / Math.PI) - 90; // 0 = horizontal
-      deg = ((deg + 45) % 90) - 45;
-      angles.push(deg);
-    }
-    edges.delete(); lines.delete();
-    if (!angles.length) return { mat: grayMat, angle: 0 };
-    angles.sort((a, b) => a - b);
-    const medianAngle = angles[Math.floor(angles.length / 2)];
-    if (Math.abs(medianAngle) < 0.1) return { mat: grayMat, angle: 0 };
-    const center = new cv.Point(grayMat.cols / 2, grayMat.rows / 2);
-    const M = cv.getRotationMatrix2D(center, medianAngle, 1);
-    const rotated = new cv.Mat();
-    cv.warpAffine(grayMat, rotated, M, new cv.Size(grayMat.cols, grayMat.rows),
-      cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar(255, 255, 255, 255));
-    M.delete();
-    return { mat: rotated, angle: medianAngle };
-  }
-
-  /**
-   * Runs grayscale -> (deskew) -> blur -> threshold -> despeckle -> morphology
-   * -> connected-component cleanup, returning both a "threshold preview"
-   * (grayscale-ish, post-blur) and the final binary mask (foreground = 255).
-   */
-  function run(canvas, opts) {
-    if (!cvReady()) throw new Error('OpenCV.js not ready yet');
-    const src = matFromCanvas(canvas);
-    let gray = toGray(src);
-    src.delete();
-
-    if (opts.invert) {
-      const inv = new cv.Mat();
-      cv.bitwise_not(gray, inv);
-      gray.delete(); gray = inv;
-    }
-
-    let skewAngle = 0;
-    if (opts.deskew) {
-      const r = deskew(gray);
-      if (r.mat !== gray) { gray.delete(); gray = r.mat; skewAngle = r.angle; }
-    }
-
-    if (opts.gaussRadius > 0) {
-      const k = App.Util.odd(opts.gaussRadius * 2 + 1);
-      const blurred = new cv.Mat();
-      cv.GaussianBlur(gray, blurred, new cv.Size(k, k), 0);
-      gray.delete(); gray = blurred;
-    }
-    if (opts.medianRadius > 0) {
-      const k = App.Util.odd(opts.medianRadius * 2 + 1);
-      const blurred = new cv.Mat();
-      cv.medianBlur(gray, blurred, k);
-      gray.delete(); gray = blurred;
-    }
-
-    const thresholdPreviewCanvas = document.createElement('canvas');
-    thresholdPreviewCanvas.width = gray.cols; thresholdPreviewCanvas.height = gray.rows;
-    cv.imshow(thresholdPreviewCanvas, gray);
-
-    // Binarize. Foreground (ink) = 255, background (paper) = 0. Scanned
-    // drawings are dark strokes on light paper, so THRESH_BINARY_INV.
-    const bin = new cv.Mat();
-    if (opts.threshMode === 'adaptive') {
-      const block = Math.max(3, App.Util.odd(opts.adaptiveBlock));
-      cv.adaptiveThreshold(gray, bin, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv.THRESH_BINARY_INV, block, opts.adaptiveC);
-    } else if (opts.threshMode === 'otsu') {
-      cv.threshold(gray, bin, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
-    } else {
-      cv.threshold(gray, bin, opts.manualThresh, 255, cv.THRESH_BINARY_INV);
-    }
-    gray.delete();
-
-    let work = bin;
-
-    if (opts.openKernel > 0) {
-      const k = cv.Mat.ones(opts.openKernel, opts.openKernel, cv.CV_8U);
-      const out = new cv.Mat();
-      cv.morphologyEx(work, out, cv.MORPH_OPEN, k);
-      k.delete(); work.delete(); work = out;
-    }
-    if (opts.closeKernel > 0) {
-      const k = cv.Mat.ones(opts.closeKernel, opts.closeKernel, cv.CV_8U);
-      const out = new cv.Mat();
-      cv.morphologyEx(work, out, cv.MORPH_CLOSE, k);
-      k.delete(); work.delete(); work = out;
-    }
-
-    if (opts.despeckle > 0 || opts.minComponent > 0) {
-      // One pass over the label map. Anything per-component that allocates a
-      // full-size Mat (the old cv.compare approach) leaks the WASM heap dry
-      // on real scans, which have hundreds of speckle components.
-      const minArea = Math.max(opts.despeckle, opts.minComponent);
-      const labels = new cv.Mat(), stats = new cv.Mat(), centroids = new cv.Mat();
-      const n = cv.connectedComponentsWithStats(work, labels, stats, centroids, 8, cv.CV_32S);
-      const keep = new Uint8Array(n);
-      for (let lbl = 1; lbl < n; lbl++) {
-        keep[lbl] = stats.intAt(lbl, cv.CC_STAT_AREA) >= minArea ? 1 : 0;
-      }
-      const lbl32 = labels.data32S;
-      const w0 = work.cols, h0 = work.rows;
-      const cleanedData = new Uint8Array(w0 * h0);
-      for (let i = 0; i < cleanedData.length; i++) cleanedData[i] = keep[lbl32[i]] ? 255 : 0;
-      labels.delete(); stats.delete(); centroids.delete(); work.delete();
-      work = cv.matFromArray(h0, w0, cv.CV_8U, cleanedData);
-    }
-
-    const binaryPreviewCanvas = document.createElement('canvas');
-    binaryPreviewCanvas.width = work.cols; binaryPreviewCanvas.height = work.rows;
-    cv.imshow(binaryPreviewCanvas, work);
-
-    const width = work.cols, height = work.rows;
-    const binaryData = new Uint8Array(width * height);
-    for (let i = 0; i < width * height; i++) binaryData[i] = work.data[i] ? 255 : 0;
-    work.delete();
-
-    return {
-      width, height, skewAngle,
-      thresholdCanvas: thresholdPreviewCanvas,
-      binaryCanvas: binaryPreviewCanvas,
-      binary: { width, height, data: binaryData }
-    };
-  }
-
-  return { run, cvReady };
-})();
-
-/* ================================================================
- * CvWait - reliable "OpenCV.js is ready" notification.
- * opencv.js's own cv['onRuntimeInitialized'] hook is a one-shot event: if
- * the WASM runtime finishes initializing in the window between us seeing
- * `window.cv` exist and us attaching that callback, the callback is lost
- * forever and any code waiting on it hangs indefinitely. Polling cvReady()
- * on an interval instead has no such race - it just checks current state -
- * so it's the only reliable way to know readiness here.
- * ================================================================ */
-App.CvWait = (function () {
-  let ready = false;
-  const queue = [];
-  function poll() {
-    if (App.ImageProcessor.cvReady()) {
-      ready = true;
-      queue.splice(0).forEach(cb => cb());
-      return;
-    }
-    if (window.__cvScriptFailed) return; // stop polling; caller surfaces the failure via App.Status
-    setTimeout(poll, 200);
-  }
-  function onReady(cb) {
-    if (ready || App.ImageProcessor.cvReady()) { ready = true; cb(); return; }
-    queue.push(cb);
-  }
-  poll();
-  return { onReady, isReady: () => ready || App.ImageProcessor.cvReady() };
-})();
-
-/* ================================================================
- * Skeletonizer - Zhang-Suen thinning, executed inside a Web Worker
- * so large (up to A0 @ 1200dpi) bitmaps don't block the UI thread.
- * The worker is created from an inline source string via a Blob URL
- * so the whole app can remain a single HTML file with no extra
- * worker script to host.
- * ================================================================ */
-App.Skeletonizer = (function () {
-
-  const workerSrc = `
-    // Zhang-Suen thinning, iterative, operating on a flat 0/1 Uint8Array.
-    // Standard two-subiteration algorithm; runs until no pixel changes.
-    function thin(width, height, bin) {
-      let img = bin; // 1 = foreground
-      const P = (arr, x, y) => (x < 0 || y < 0 || x >= width || y >= height) ? 0 : arr[y * width + x];
-      let changed = true;
-      let iter = 0;
-      while (changed) {
-        changed = false;
-        for (let sub = 0; sub < 2; sub++) {
-          const toRemove = [];
-          for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-              if (!P(img, x, y)) continue;
-              const p2=P(img,x,y-1), p3=P(img,x+1,y-1), p4=P(img,x+1,y),
-                    p5=P(img,x+1,y+1), p6=P(img,x,y+1), p7=P(img,x-1,y+1),
-                    p8=P(img,x-1,y), p9=P(img,x-1,y-1);
-              const B = p2+p3+p4+p5+p6+p7+p8+p9;
-              if (B < 2 || B > 6) continue;
-              const seq = [p2,p3,p4,p5,p6,p7,p8,p9,p2];
-              let A = 0;
-              for (let k = 0; k < 8; k++) if (seq[k] === 0 && seq[k+1] === 1) A++;
-              if (A !== 1) continue;
-              if (sub === 0) {
-                if (p2*p4*p6 !== 0) continue;
-                if (p4*p6*p8 !== 0) continue;
-              } else {
-                if (p2*p4*p8 !== 0) continue;
-                if (p2*p6*p8 !== 0) continue;
-              }
-              toRemove.push(y * width + x);
-            }
-          }
-          if (toRemove.length) {
-            changed = true;
-            for (const idx of toRemove) img[idx] = 0;
-          }
-        }
-        iter++;
-        if (iter % 4 === 0) postMessage({ type: 'progress', pct: Math.min(95, iter) });
-        if (iter > 2000) break; // safety valve
-      }
-      return img;
-    }
-
-    onmessage = function (e) {
-      const { width, height, data } = e.data;
-      const bin = new Uint8Array(width * height);
-      for (let i = 0; i < bin.length; i++) bin[i] = data[i] ? 1 : 0;
-      const result = thin(width, height, bin);
-      const out = new Uint8Array(width * height);
-      for (let i = 0; i < out.length; i++) out[i] = result[i] ? 255 : 0;
-      postMessage({ type: 'done', width, height, data: out }, [out.buffer]);
-    };
-  `;
-
-  let worker = null;
-  function getWorker() {
-    if (worker) return worker;
-    const blob = new Blob([workerSrc], { type: 'application/javascript' });
-    worker = new Worker(URL.createObjectURL(blob));
-    return worker;
-  }
-
-  function skeletonize(binaryImage, onProgress) {
-    return new Promise((resolve, reject) => {
-      const w = getWorker();
-      const handler = (e) => {
-        if (e.data.type === 'progress') { onProgress && onProgress(e.data.pct); return; }
-        if (e.data.type === 'done') {
-          w.removeEventListener('message', handler);
-          resolve({ width: e.data.width, height: e.data.height, data: e.data.data });
-        }
-      };
-      w.addEventListener('message', handler);
-      w.onerror = (err) => reject(err);
-      const copy = new Uint8Array(binaryImage.data); // transferable, keep original intact
-      w.postMessage({ width: binaryImage.width, height: binaryImage.height, data: copy }, [copy.buffer]);
-    });
-  }
-
-  return { skeletonize };
-})();
-
-/* ================================================================
- * GraphBuilder - turns a 1px skeleton into a topological graph of
- * endpoints/junctions connected by traced pixel-chain branches
- * (handles simple closed loops with no junction too).
- * ================================================================ */
-App.GraphBuilder = (function () {
-  // Cyclic clockwise 8-neighborhood order, required for run detection below.
-  const NB = [[-1,-1],[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0]];
-
-  function neighbors(x, y, w, h, fg) {
-    const out = [];
-    for (const [dx, dy] of NB) {
-      const nx = x + dx, ny = y + dy;
-      if (nx >= 0 && ny >= 0 && nx < w && ny < h && fg[ny * w + nx]) out.push([nx, ny]);
-    }
-    return out;
-  }
-
-  /**
-   * The true topological degree of a skeleton pixel is not its raw foreground
-   * neighbor count: two neighbors that are only "connected" through a shared
-   * diagonal step (e.g. the pixel straight next to a real T-junction, or any
-   * pixel on a staircased/aliased curve) still belong to the same visual
-   * branch. Grouping the 8-neighborhood into maximal cyclic runs of
-   * foreground pixels gives the real branch count - one run per direction a
-   * traced line actually leaves the pixel in - which is what both junction
-   * classification and edge-following need to be correct.
-   */
-  function neighborRuns(x, y, w, h, fg) {
-    const present = NB.map(([dx, dy]) => {
-      const nx = x + dx, ny = y + dy;
-      return (nx >= 0 && ny >= 0 && nx < w && ny < h && fg[ny * w + nx]) ? [nx, ny] : null;
-    });
-    const start = present.findIndex(p => !p);
-    if (start === -1) return [present.slice()]; // fully surrounded: degenerate blob, one run
-    const runs = [];
-    let cur = [];
-    for (let k = 1; k <= 8; k++) {
-      const idx = (start + k) % 8;
-      if (present[idx]) cur.push(present[idx]);
-      else if (cur.length) { runs.push(cur); cur = []; }
-    }
-    if (cur.length) runs.push(cur);
-    return runs;
-  }
-
-  function build(skeleton) {
-    const { width: w, height: h, data } = skeleton;
-    const fg = new Uint8Array(w * h);
-    for (let i = 0; i < fg.length; i++) fg[i] = data[i] ? 1 : 0;
-
-    const runCount = new Uint8Array(w * h);
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      if (!fg[y * w + x]) continue;
-      runCount[y * w + x] = neighborRuns(x, y, w, h, fg).length;
-    }
-
-    const nodeType = new Uint8Array(w * h); // 1=endpoint 2=junction
-    for (let i = 0; i < fg.length; i++) {
-      if (!fg[i]) continue;
-      if (runCount[i] === 1) nodeType[i] = 1;
-      else if (runCount[i] >= 3) nodeType[i] = 2;
-    }
-
-    const visited = new Set(); // directed-edge visitation, keyed by "x1,y1,x2,y2"
-    const branches = [];
-
-    /** Runs at (cx,cy) other than the one the walk just arrived from. */
-    function forwardRuns(cx, cy, px, py) {
-      return neighborRuns(cx, cy, w, h, fg)
-        .filter(run => px === -1 || !run.some(([nx, ny]) => nx === px && ny === py));
-    }
-
-    function traceFrom(sx, sy, fx, fy) {
-      // walk from a node pixel (sx,sy) into neighbor (fx,fy) until hitting
-      // another node pixel (endpoint/junction) or running out of skeleton.
-      const pts = [[sx, sy]];
-      let px = sx, py = sy, cx = fx, cy = fy;
-      while (true) {
-        pts.push([cx, cy]);
-        const idx = cy * w + cx;
-        if (nodeType[idx]) break; // reached another node
-        const fwd = forwardRuns(cx, cy, px, py);
-        if (fwd.length !== 1) break; // dead end / ambiguity, stop the trace
-        px = cx; py = cy;
-        [cx, cy] = fwd[0][0];
-      }
-      return pts;
-    }
-
-    // 1) Trace all branches that start at a node pixel, one per outgoing run
-    //    (not one per raw neighbor, which would double-trace diagonal-artifact
-    //    edges and the same logical branch).
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      const idx = y * w + x;
-      if (!fg[idx] || !nodeType[idx]) continue;
-      for (const run of neighborRuns(x, y, w, h, fg)) {
-        const [nx, ny] = run[0];
-        const key = edgeKey(x, y, nx, ny);
-        if (visited.has(key)) continue;
-        const pts = traceFrom(x, y, nx, ny);
-        markVisited(pts);
-        if (pts.length >= 2) branches.push({ points: pts, closed: false });
-      }
-    }
-
-    // 2) Any skeleton pixels left untouched belong to pure loops (no
-    //    junction/endpoint anywhere on the cycle) - trace those separately.
-    const seen = new Uint8Array(w * h);
-    for (const b of branches) for (const [x, y] of b.points) seen[y * w + x] = 1;
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      const idx = y * w + x;
-      if (!fg[idx] || seen[idx]) continue;
-      const pts = [[x, y]];
-      seen[idx] = 1;
-      let cx = x, cy = y, px = -1, py = -1;
-      while (true) {
-        const fwd = forwardRuns(cx, cy, px, py);
-        const next = fwd.map(run => run[0]).find(([nx, ny]) => !seen[ny * w + nx]);
-        if (!next) { if (fwd.length) pts.push(fwd[0][0]); break; }
-        px = cx; py = cy; [cx, cy] = next;
-        seen[cy * w + cx] = 1;
-        pts.push([cx, cy]);
-        if (cx === x && cy === y) break;
-      }
-      if (pts.length >= 3) branches.push({ points: pts, closed: true });
-    }
-
-    function edgeKey(x1, y1, x2, y2) { return x1 + ',' + y1 + ',' + x2 + ',' + y2; }
-    function markVisited(pts) {
-      for (let i = 0; i < pts.length - 1; i++) {
-        const [x1, y1] = pts[i], [x2, y2] = pts[i + 1];
-        visited.add(edgeKey(x1, y1, x2, y2));
-        visited.add(edgeKey(x2, y2, x1, y1));
-      }
-    }
-
-    const nodes = [];
-    for (let i = 0; i < fg.length; i++) {
-      if (nodeType[i] === 1) nodes.push({ x: i % w, y: (i / w) | 0, type: 'endpoint' });
-      else if (nodeType[i] === 2) nodes.push({ x: i % w, y: (i / w) | 0, type: 'junction' });
-    }
-
-    return { width: w, height: h, nodes, branches };
-  }
-
-  return { build };
-})();
-
-/* ================================================================
- * GeometryFitter - Douglas-Peucker simplification, line/H/V/45deg
- * snapping, algebraic circle/arc fitting (Kasa method), and a spline
- * fallback for chains that are neither straight nor circular.
- * ================================================================ */
-App.GeometryFitter = (function () {
-
-  function douglasPeucker(points, epsilon) {
-    if (points.length < 3) return points.slice();
-    let maxDist = -1, idx = 0;
-    const [x1, y1] = points[0], [x2, y2] = points[points.length - 1];
-    const dx = x2 - x1, dy = y2 - y1;
-    const norm = Math.hypot(dx, dy) || 1;
-    for (let i = 1; i < points.length - 1; i++) {
-      const [px, py] = points[i];
-      const d = Math.abs(dy * px - dx * py + x2 * y1 - y2 * x1) / norm;
-      if (d > maxDist) { maxDist = d; idx = i; }
-    }
-    if (maxDist > epsilon) {
-      const left = douglasPeucker(points.slice(0, idx + 1), epsilon);
-      const right = douglasPeucker(points.slice(idx), epsilon);
-      return left.slice(0, -1).concat(right);
-    }
-    return [points[0], points[points.length - 1]];
-  }
-
-  function angleSnap(x1, y1, x2, y2, tolDeg) {
-    let deg = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
-    deg = ((deg % 360) + 360) % 360;
-    const targets = [0, 45, 90, 135, 180, 225, 270, 315, 360];
-    for (const t of targets) {
-      if (Math.abs(deg - t) <= tolDeg) {
-        const len = Math.hypot(x2 - x1, y2 - y1);
-        const rad = t * Math.PI / 180;
-        return { x2: x1 + Math.cos(rad) * len, y2: y1 + Math.sin(rad) * len, snapped: true };
-      }
-    }
-    return { x2, y2, snapped: false };
-  }
-
-  /** Kasa algebraic circle fit: minimizes algebraic residual of x^2+y^2+Dx+Ey+F=0. */
-  function fitCircle(points) {
-    const n = points.length;
-    if (n < 3) return null;
-    let sx=0, sy=0, sxx=0, syy=0, sxy=0, sxz=0, syz=0, sz=0;
-    for (const [x, y] of points) {
-      const z = x * x + y * y;
-      sx += x; sy += y; sxx += x * x; syy += y * y; sxy += x * y;
-      sxz += x * z; syz += y * z; sz += z;
-    }
-    // Normal equations for [D,E,F] minimizing sum (x^2+y^2+Dx+Ey+F)^2
-    const A = [
-      [sxx, sxy, sx],
-      [sxy, syy, sy],
-      [sx,  sy,  n]
-    ];
-    const b = [-sxz, -syz, -sz];
-    const sol = solve3x3(A, b);
-    if (!sol) return null;
-    const [D, E, F] = sol;
-    const cx = -D / 2, cy = -E / 2;
-    const r2 = cx * cx + cy * cy - F;
-    if (r2 <= 0) return null;
-    const r = Math.sqrt(r2);
-    let sse = 0;
-    for (const [x, y] of points) { const d = Math.hypot(x - cx, y - cy) - r; sse += d * d; }
-    const rms = Math.sqrt(sse / n);
-    return { cx, cy, r, rms };
-  }
-
-  function solve3x3(A, b) {
-    const m = A.map((row, i) => row.concat([b[i]]));
-    for (let col = 0; col < 3; col++) {
-      let piv = col;
-      for (let r = col + 1; r < 3; r++) if (Math.abs(m[r][col]) > Math.abs(m[piv][col])) piv = r;
-      if (Math.abs(m[piv][col]) < 1e-9) return null;
-      [m[col], m[piv]] = [m[piv], m[col]];
-      for (let r = 0; r < 3; r++) {
-        if (r === col) continue;
-        const f = m[r][col] / m[col][col];
-        for (let c = col; c < 4; c++) m[r][c] -= f * m[col][c];
-      }
-    }
-    return [m[0][3] / m[0][0], m[1][3] / m[1][1], m[2][3] / m[2][2]];
-  }
-
-  function isNearlyCollinear(a, b, c, tolDeg) {
-    const a1 = Math.atan2(b[1] - a[1], b[0] - a[0]);
-    const a2 = Math.atan2(c[1] - b[1], c[0] - b[0]);
-    let diff = Math.abs(a1 - a2) * 180 / Math.PI;
-    if (diff > 180) diff = 360 - diff;
-    return diff <= tolDeg;
-  }
-
-  /** Merge consecutive collinear line segments of a simplified polyline into runs. */
-  function mergeCollinear(points, tolDeg) {
-    if (points.length <= 2) return [points];
-    const runs = [[points[0], points[1]]];
-    for (let i = 2; i < points.length; i++) {
-      const run = runs[runs.length - 1];
-      const a = run[run.length - 2], b = run[run.length - 1], c = points[i];
-      if (isNearlyCollinear(a, b, c, tolDeg)) run.push(c);
-      else runs.push([points[i - 1], points[i]]);
-    }
-    return runs;
-  }
-
-  function fitBranch(branch, opts, layer) {
-    const pts = branch.points;
-    if (pts.length < 2) return [];
-    // A closed loop starts and ends on the same pixel, so DP's anchor chord
-    // is degenerate and every interior point measures distance 0 — the whole
-    // loop collapses to a zero-length line. Split at the farthest point from
-    // the start and simplify the two halves independently.
-    let simplified;
-    if (branch.closed) {
-      let far = 0, fd = -1;
-      for (let i = 1; i < pts.length; i++) {
-        const d = (pts[i][0] - pts[0][0]) ** 2 + (pts[i][1] - pts[0][1]) ** 2;
-        if (d > fd) { fd = d; far = i; }
-      }
-      const a = douglasPeucker(pts.slice(0, far + 1), opts.epsilon);
-      const b = douglasPeucker(pts.slice(far), opts.epsilon);
-      simplified = a.concat(b.slice(1));
-    } else {
-      simplified = douglasPeucker(pts, opts.epsilon);
-    }
-
-    if (opts.fitArcs && (branch.closed || simplified.length > 2)) {
-      const circle = fitCircle(pts.length > 40 ? sample(pts, 40) : pts);
-      // Kasa fit of a nearly-straight chain converges on an enormous circle
-      // (r >> the chain itself) with tiny rms, so tolerance alone lets
-      // straight lines through as giant off-page circles. A genuine arc's
-      // radius is bounded by its bounding box: r = diag/2 for a full circle
-      // up to ~2*diag for a shallow ~30° arc.
-      let bboxOk = false;
-      if (circle) {
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const [x, y] of pts) {
-          if (x < minX) minX = x; if (x > maxX) maxX = x;
-          if (y < minY) minY = y; if (y > maxY) maxY = y;
-        }
-        bboxOk = circle.r <= Math.hypot(maxX - minX, maxY - minY) * 2;
-      }
-      if (circle && bboxOk && circle.rms <= opts.circleTol) {
-        const [sx, sy] = pts[0], [ex, ey] = pts[pts.length - 1];
-        const startAngle = Math.atan2(sy - circle.cy, sx - circle.cx) * 180 / Math.PI;
-        const endAngle = Math.atan2(ey - circle.cy, ex - circle.cx) * 180 / Math.PI;
-        const span = Math.hypot(sx - ex, sy - ey);
-        if (branch.closed || span < circle.r * 0.15) {
-          return [{ type: 'CIRCLE', cx: circle.cx, cy: circle.cy, r: circle.r, layer: 'GEOMETRY-CIRCLES' }];
-        }
-        return [{ type: 'ARC', cx: circle.cx, cy: circle.cy, r: circle.r, startAngle, endAngle, layer: 'GEOMETRY-ARCS' }];
-      }
-    }
-
-    if (opts.fitLines && simplified.length === 2) {
-      let [[x1, y1], [x2, y2]] = simplified;
-      if (opts.angleSnap > 0) {
-        const snapped = angleSnap(x1, y1, x2, y2, opts.angleSnap);
-        x2 = snapped.x2; y2 = snapped.y2;
-      }
-      return [{ type: 'LINE', x1, y1, x2, y2, layer: 'GEOMETRY-LINES' }];
-    }
-
-    if (opts.fitLines && simplified.length > 2) {
-      const runs = mergeCollinear(simplified, Math.max(2, opts.angleSnap));
-      const straightEnough = runs.length <= simplified.length - 1;
-      if (straightEnough) {
-        const vertices = [runs[0][0]];
-        for (const run of runs) vertices.push(run[run.length - 1]);
-        return [{ type: 'LWPOLYLINE', points: vertices, closed: branch.closed, layer: 'GEOMETRY-LINES' }];
-      }
-    }
-
-    if (opts.fitSplines) {
-      return [{ type: 'SPLINE', controlPoints: simplified, closed: branch.closed, layer: 'GEOMETRY-SPLINES' }];
-    }
-    return [];
-  }
-
-  function sample(pts, n) {
-    const out = [];
-    for (let i = 0; i < n; i++) out.push(pts[Math.floor(i * (pts.length - 1) / (n - 1))]);
-    return out;
-  }
-
-  function fit(graph, opts) {
-    const entities = [];
-    for (const branch of graph.branches) {
-      entities.push(...fitBranch(branch, opts));
-    }
-    return entities;
-  }
-
-  return { fit, douglasPeucker, fitCircle };
-})();
-
-/* ================================================================
- * DXFWriter - minimal but valid modern ASCII DXF (AutoCAD 2007 / AC1021)
- * with a LAYER table and LINE/LWPOLYLINE/ARC/CIRCLE/SPLINE entities.
- * ================================================================ */
-App.DXFWriter = (function () {
-  const LAYERS = [
-    { name: '0', color: 7 },
-    { name: 'GEOMETRY-LINES', color: 5 },
-    { name: 'GEOMETRY-ARCS', color: 3 },
-    { name: 'GEOMETRY-CIRCLES', color: 1 },
-    { name: 'GEOMETRY-SPLINES', color: 6 },
-    { name: 'GEOMETRY-POINTS', color: 2 }
-  ];
-
-  function unitScale(units, dpi) {
-    if (units === 'mm') return 25.4 / dpi;
-    if (units === 'in') return 1 / dpi;
-    return 1; // px
-  }
-
-  function xy(px, py, imgHeight, scale) {
-    // Flip Y (image rows go down, DXF Y goes up) and apply unit scale.
-    return [px * scale, (imgHeight - py) * scale];
-  }
-
-  function line(lines, code, value) { lines.push(String(code), String(value)); }
-
-  function writeHeader(lines, units) {
-    const insunits = units === 'mm' ? 6 : (units === 'in' ? 1 : 0);
-    line(lines, 0, 'SECTION'); line(lines, 2, 'HEADER');
-    line(lines, 9, '$ACADVER'); line(lines, 1, 'AC1021');
-    line(lines, 9, '$INSUNITS'); line(lines, 70, insunits);
-    line(lines, 0, 'ENDSEC');
-  }
-
-  function writeTables(lines) {
-    line(lines, 0, 'SECTION'); line(lines, 2, 'TABLES');
-    line(lines, 0, 'TABLE'); line(lines, 2, 'LAYER');
-    line(lines, 70, LAYERS.length);
-    for (const l of LAYERS) {
-      line(lines, 0, 'LAYER');
-      line(lines, 2, l.name);
-      line(lines, 70, 0);
-      line(lines, 62, l.color);
-      line(lines, 6, 'CONTINUOUS');
-    }
-    line(lines, 0, 'ENDTAB');
-    line(lines, 0, 'ENDSEC');
-  }
-
-  function writeEntity(lines, ent, imgHeight, scale) {
-    if (ent.type === 'POINT') {
-      const [x, y] = xy(ent.x, ent.y, imgHeight, scale);
-      line(lines, 0, 'POINT'); line(lines, 8, ent.layer);
-      line(lines, 10, x.toFixed(4)); line(lines, 20, y.toFixed(4)); line(lines, 30, 0);
-    } else if (ent.type === 'LINE') {
-      const [x1, y1] = xy(ent.x1, ent.y1, imgHeight, scale);
-      const [x2, y2] = xy(ent.x2, ent.y2, imgHeight, scale);
-      line(lines, 0, 'LINE'); line(lines, 8, ent.layer);
-      line(lines, 10, x1.toFixed(4)); line(lines, 20, y1.toFixed(4)); line(lines, 30, 0);
-      line(lines, 11, x2.toFixed(4)); line(lines, 21, y2.toFixed(4)); line(lines, 31, 0);
-    } else if (ent.type === 'LWPOLYLINE') {
-      line(lines, 0, 'LWPOLYLINE'); line(lines, 8, ent.layer);
-      line(lines, 90, ent.points.length);
-      line(lines, 70, ent.closed ? 1 : 0);
-      for (const [px, py] of ent.points) {
-        const [x, y] = xy(px, py, imgHeight, scale);
-        line(lines, 10, x.toFixed(4)); line(lines, 20, y.toFixed(4));
-      }
-    } else if (ent.type === 'CIRCLE') {
-      const [cx, cy] = xy(ent.cx, ent.cy, imgHeight, scale);
-      line(lines, 0, 'CIRCLE'); line(lines, 8, ent.layer);
-      line(lines, 10, cx.toFixed(4)); line(lines, 20, cy.toFixed(4)); line(lines, 30, 0);
-      line(lines, 40, (ent.r * scale).toFixed(4));
-    } else if (ent.type === 'ARC') {
-      const [cx, cy] = xy(ent.cx, ent.cy, imgHeight, scale);
-      // Y flip reverses angle sense, so swap+negate start/end.
-      let start = -ent.endAngle, end = -ent.startAngle;
-      start = ((start % 360) + 360) % 360; end = ((end % 360) + 360) % 360;
-      line(lines, 0, 'ARC'); line(lines, 8, ent.layer);
-      line(lines, 10, cx.toFixed(4)); line(lines, 20, cy.toFixed(4)); line(lines, 30, 0);
-      line(lines, 40, (ent.r * scale).toFixed(4));
-      line(lines, 50, start.toFixed(3)); line(lines, 51, end.toFixed(3));
-    } else if (ent.type === 'SPLINE') {
-      const pts = ent.controlPoints;
-      const degree = Math.min(3, pts.length - 1);
-      const nCtrl = pts.length;
-      const nKnots = nCtrl + degree + 1;
-      const knots = [];
-      for (let i = 0; i <= degree; i++) knots.push(0);
-      for (let i = 1; i < nCtrl - degree; i++) knots.push(i);
-      for (let i = 0; i <= degree; i++) knots.push(nCtrl - degree);
-      while (knots.length < nKnots) knots.push(knots[knots.length - 1]);
-      line(lines, 0, 'SPLINE'); line(lines, 8, ent.layer);
-      line(lines, 70, ent.closed ? 1 : 0);
-      line(lines, 71, degree);
-      line(lines, 72, knots.length);
-      line(lines, 73, nCtrl);
-      line(lines, 74, 0);
-      for (const k of knots) line(lines, 40, k.toFixed(4));
-      for (const [px, py] of pts) {
-        const [x, y] = xy(px, py, imgHeight, scale);
-        line(lines, 10, x.toFixed(4)); line(lines, 20, y.toFixed(4)); line(lines, 30, 0);
-      }
-    }
-  }
-
-  function build(entities, imgHeight, units, dpi) {
-    const scale = unitScale(units, dpi);
-    const lines = [];
-    writeHeader(lines, units);
-    writeTables(lines);
-    line(lines, 0, 'SECTION'); line(lines, 2, 'ENTITIES');
-    for (const ent of entities) writeEntity(lines, ent, imgHeight, scale);
-    line(lines, 0, 'ENDSEC');
-    line(lines, 0, 'EOF');
-    return lines.join('\n');
-  }
-
-  function download(dxfString, filename) {
-    const blob = new Blob([dxfString], { type: 'application/dxf' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
-  }
-
-  return { build, download };
-})();
-
-/* ================================================================
- * Renderer - generic pan/zoom canvas viewer shared by every tab.
- * Draws either a raster source (ImageBitmap/canvas) or vector
- * entities (for the Vectors / DXF Preview tabs).
- * ================================================================ */
-App.Renderer = (function () {
-  const canvas = document.getElementById('viewerCanvas');
-  const wrap = document.getElementById('viewerWrap');
-  const ctx = canvas.getContext('2d');
-  const zoomLabel = document.getElementById('zoomLabel');
-
-  let view = { scale: 1, ox: 0, oy: 0 }; // ox,oy = top-left of source visible at canvas(0,0)
-  let sources = {}; // tab -> {kind:'raster'|'vector', ...}
-  let activeTab = 'original';
-  let sourceW = 0, sourceH = 0;
-
-  function resizeCanvas() {
-    const r = wrap.getBoundingClientRect();
-    canvas.width = Math.max(1, Math.round(r.width));
-    canvas.height = Math.max(1, Math.round(r.height));
-    draw();
-  }
-  window.addEventListener('resize', App.Util.throttleRAF(resizeCanvas));
-
-  function setSource(tab, source) {
-    sources[tab] = source;
-    if (tab === activeTab) { fitToScreen(); }
-  }
-
-  function setActiveTab(tab) {
-    activeTab = tab;
-    const src = sources[tab];
-    document.getElementById('emptyState').style.display = src ? 'none' : 'flex';
-    fitToScreen();
-  }
-
-  function currentDims() {
-    const s = sources[activeTab];
-    if (!s) return { w: 0, h: 0 };
-    if (s.kind === 'raster') return { w: s.canvas.width, h: s.canvas.height };
-    return { w: s.width, h: s.height };
-  }
-
-  function fitToScreen() {
-    const { w, h } = currentDims();
-    if (!w || !h) { draw(); return; }
-    const pad = 24;
-    const scale = Math.min((canvas.width - pad * 2) / w, (canvas.height - pad * 2) / h, 8);
-    view.scale = Math.max(scale, 0.001);
-    view.ox = (w - canvas.width / view.scale) / 2;
-    view.oy = (h - canvas.height / view.scale) / 2;
-    draw();
-  }
-
-  function setZoom100() {
-    const { w, h } = currentDims();
-    view.scale = 1;
-    view.ox = (w - canvas.width) / 2;
-    view.oy = (h - canvas.height) / 2;
-    draw();
-  }
-
-  function zoomBy(factor, cx, cy) {
-    const { w, h } = currentDims();
-    if (!w) return;
-    cx = cx ?? canvas.width / 2; cy = cy ?? canvas.height / 2;
-    const worldX = view.ox + cx / view.scale, worldY = view.oy + cy / view.scale;
-    view.scale = App.Util.clamp(view.scale * factor, 0.01, 40);
-    view.ox = worldX - cx / view.scale;
-    view.oy = worldY - cy / view.scale;
-    draw();
-  }
-
-  function draw() {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const s = sources[activeTab];
-    if (!s) { zoomLabel.textContent = '--'; return; }
-    ctx.save();
-    ctx.scale(view.scale, view.scale);
-    ctx.translate(-view.ox, -view.oy);
-    if (s.kind === 'raster') {
-      ctx.imageSmoothingEnabled = view.scale < 1;
-      ctx.drawImage(s.canvas, 0, 0);
-    } else if (s.kind === 'vector') {
-      drawVector(s);
-    }
-    ctx.restore();
-    zoomLabel.textContent = Math.round(view.scale * 100) + '%';
-  }
-
-  function drawVector(s) {
-    ctx.fillStyle = '#0b0d0f';
-    ctx.fillRect(0, 0, s.width, s.height);
-    const lw = 1 / view.scale;
-    const colors = { 'GEOMETRY-LINES': '#4da3ff', 'GEOMETRY-ARCS': '#5ec26a', 'GEOMETRY-CIRCLES': '#ff6b6b', 'GEOMETRY-SPLINES': '#e8b84b', 'GEOMETRY-POINTS': '#e8b84b' };
-    for (const ent of s.entities) {
-      ctx.strokeStyle = colors[ent.layer] || '#ccc';
-      ctx.lineWidth = Math.max(lw, 0.4);
-      ctx.beginPath();
-      if (ent.type === 'POINT') {
-        ctx.fillStyle = colors[ent.layer] || '#ccc';
-        ctx.arc(ent.x, ent.y, Math.max(lw * 2, 1), 0, Math.PI * 2);
-        ctx.fill();
-        continue;
-      }
-      if (ent.type === 'LINE') {
-        ctx.moveTo(ent.x1, ent.y1); ctx.lineTo(ent.x2, ent.y2);
-      } else if (ent.type === 'LWPOLYLINE') {
-        ent.points.forEach(([x, y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
-        if (ent.closed) ctx.closePath();
-      } else if (ent.type === 'CIRCLE') {
-        ctx.arc(ent.cx, ent.cy, ent.r, 0, Math.PI * 2);
-      } else if (ent.type === 'ARC') {
-        ctx.arc(ent.cx, ent.cy, ent.r, ent.startAngle * Math.PI / 180, ent.endAngle * Math.PI / 180);
-      } else if (ent.type === 'SPLINE') {
-        ent.controlPoints.forEach(([x, y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
-      }
-      ctx.stroke();
-    }
-  }
-
-  // --- interaction: drag to pan, wheel to zoom, touch pinch ---
-  let dragging = false, lastX = 0, lastY = 0;
-  canvas.addEventListener('pointerdown', (e) => {
-    dragging = true; lastX = e.clientX; lastY = e.clientY;
-    canvas.setPointerCapture(e.pointerId); canvas.classList.add('grabbing');
-  });
-  canvas.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    const dx = e.clientX - lastX, dy = e.clientY - lastY;
-    lastX = e.clientX; lastY = e.clientY;
-    view.ox -= dx / view.scale; view.oy -= dy / view.scale;
-    draw();
-  });
-  function endDrag(e) { dragging = false; canvas.classList.remove('grabbing'); }
-  canvas.addEventListener('pointerup', endDrag);
-  canvas.addEventListener('pointercancel', endDrag);
-  canvas.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    const r = canvas.getBoundingClientRect();
-    zoomBy(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - r.left, e.clientY - r.top);
-  }, { passive: false });
-
-  // touch pinch-to-zoom
-  let pinchDist = null;
-  canvas.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 2) pinchDist = App.Util.dist(e.touches[0].clientX, e.touches[0].clientY, e.touches[1].clientX, e.touches[1].clientY);
-  }, { passive: true });
-  canvas.addEventListener('touchmove', (e) => {
-    if (e.touches.length === 2 && pinchDist) {
-      const d = App.Util.dist(e.touches[0].clientX, e.touches[0].clientY, e.touches[1].clientX, e.touches[1].clientY);
-      zoomBy(d / pinchDist);
-      pinchDist = d;
-    }
-  }, { passive: true });
-  canvas.addEventListener('touchend', () => { pinchDist = null; });
-
-  return { resizeCanvas, setSource, setActiveTab, fitToScreen, setZoom100, zoomBy, draw };
-})();
-
-/* ================================================================
- * UIController - wires the sidebar controls to the pipeline modules,
- * manages tab switching, progress/status, page navigation.
- * ================================================================ */
-App.UIController = (function () {
-  const $ = (id) => document.getElementById(id);
-
-  function bindRangeLabel(rangeId, labelId, fmt) {
-    const r = $(rangeId), l = $(labelId);
-    const update = () => l.textContent = fmt ? fmt(r.value) : r.value;
-    r.addEventListener('input', update);
-    update();
-  }
-
-  function readOpts() {
-    return {
-      dpi: +$('optDpi').value,
-      useEmbedded: $('optUseEmbedded').checked,
-      invert: $('optInvert').checked,
-      deskew: $('optDeskew').checked,
-      gaussRadius: +$('optGauss').value,
-      medianRadius: +$('optMedian').value,
-      threshMode: $('optThreshMode').value,
-      adaptiveBlock: +$('optAdaptiveBlock').value,
-      adaptiveC: +$('optAdaptiveC').value,
-      manualThresh: +$('optManualThresh').value,
-      despeckle: +$('optDespeckle').value,
-      openKernel: +$('optOpen').value,
-      closeKernel: +$('optClose').value,
-      minComponent: +$('optMinComponent').value,
-      epsilon: +$('optEpsilon').value,
-      angleSnap: +$('optAngleSnap').value,
-      circleTol: +$('optCircleTol').value,
-      fitLines: $('optFitLines').checked,
-      fitArcs: $('optFitArcs').checked,
-      fitSplines: $('optFitSplines').checked,
-      units: $('optUnits').value
-    };
-  }
-
-  async function openFile(file) {
-    try {
-      App.Status.busy('Loading PDF…');
-      await App.PDFLoader.loadFile(file);
-      $('pageNav').style.display = App.State.numPages > 1 ? 'flex' : 'none';
-      updatePageLabel();
-      $('thumbs').innerHTML = '';
-      App.PDFLoader.renderThumbnails((p, dataUrl) => {
-        const img = document.createElement('img');
-        img.className = 'thumb' + (p === 1 ? ' active' : '');
-        img.src = dataUrl; img.dataset.page = p;
-        img.addEventListener('click', () => { App.State.pageIndex = p; updatePageLabel(); renderPage(); highlightThumb(p); });
-        $('thumbs').appendChild(img);
-      });
-      await renderPage();
-      $('btnAuto').disabled = false;
-      App.Status.ok('PDF loaded: ' + App.State.numPages + ' page(s).');
-    } catch (e) {
-      App.Status.err('Failed to load PDF: ' + e.message);
-    }
-  }
-
-  function highlightThumb(p) {
-    document.querySelectorAll('.thumb').forEach(t => t.classList.toggle('active', +t.dataset.page === p));
-  }
-
-  function updatePageLabel() { $('pageLabel').textContent = App.State.pageIndex + ' / ' + App.State.numPages; }
-
-  async function renderPage() {
-    const opts = readOpts();
-    App.Status.busy('Rendering page at ' + opts.dpi + ' DPI…');
-    const { canvas, source, effectiveDpi } = await App.PDFLoader.getPageCanvas(App.State.pageIndex, opts.dpi, opts.useEmbedded);
-    // DXF unit conversion divides by this, so it must match the pixels we
-    // actually rendered — not the slider value — whenever the cap kicked in.
-    App.State.dpi = effectiveDpi;
-    App.State.originalImage = canvas;
-    App.Renderer.setSource('original', { kind: 'raster', canvas });
-    const capNote = effectiveDpi < opts.dpi - 0.5
-      ? ' Large page: DPI capped to ' + Math.round(effectiveDpi) + ' to fit processing memory.'
-      : '';
-    App.Status.ok('Rendered (' + source + '), ' + canvas.width + '×' + canvas.height + 'px.' + capNote);
-    $('btnPreprocess').disabled = false;
-    resetDownstream();
-  }
-
-  function resetDownstream() {
-    App.State.binaryImage = null; App.State.skeletonImage = null;
-    App.State.graph = null; App.State.geometry = null; App.State.sourceSize = null;
-    $('btnSkeletonize').disabled = true;
-    $('btnFitGeometry').disabled = true;
-    $('btnExport').disabled = true; $('btnExport2').disabled = true;
-  }
-
-  function runPreprocess() {
-    if (!App.State.originalImage) return;
-    if (!App.ImageProcessor.cvReady()) {
-      App.Status.set('Waiting for OpenCV.js to finish loading… preprocessing will start automatically.');
-      App.CvWait.onReady(runPreprocess);
-      return;
-    }
-    try {
-      App.Status.busy('Preprocessing (threshold + morphology)…');
-      const opts = readOpts();
-      const result = App.ImageProcessor.run(App.State.originalImage, opts);
-      App.State.binaryImage = result.binary;
-      App.Renderer.setSource('threshold', { kind: 'raster', canvas: result.thresholdCanvas });
-      App.Renderer.setSource('binary', { kind: 'raster', canvas: result.binaryCanvas });
-      App.Status.ok('Preprocess done' + (result.skewAngle ? (' (deskewed ' + result.skewAngle.toFixed(2) + '°)') : '') + '.');
-      $('btnSkeletonize').disabled = false;
-      App.State.skeletonImage = null; App.State.graph = null; App.State.geometry = null;
-      $('btnFitGeometry').disabled = true; $('btnExport').disabled = true; $('btnExport2').disabled = true;
-    } catch (e) {
-      App.Status.err('Preprocess failed: ' + e.message);
-    }
-  }
-
-  async function runSkeletonize() {
-    if (!App.State.binaryImage) return;
-    $('btnSkeletonize').disabled = true;
-    App.Status.busy('Skeletonizing (Zhang–Suen)…');
-    try {
-      const skel = await App.Skeletonizer.skeletonize(App.State.binaryImage, (pct) => App.Status.progress(pct));
-      App.State.skeletonImage = skel;
-      const c = document.createElement('canvas');
-      c.width = skel.width; c.height = skel.height;
-      const cx = c.getContext('2d');
-      const img = cx.createImageData(skel.width, skel.height);
-      for (let i = 0; i < skel.data.length; i++) {
-        const v = skel.data[i];
-        img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v;
-        img.data[i * 4 + 3] = 255;
-      }
-      cx.putImageData(img, 0, 0);
-      App.Renderer.setSource('skeleton', { kind: 'raster', canvas: c });
-      App.Status.ok('Skeletonization complete.');
-      $('btnFitGeometry').disabled = false;
-    } catch (e) {
-      App.Status.err('Skeletonize failed: ' + (e.message || e));
-    } finally {
-      $('btnSkeletonize').disabled = false;
-    }
-  }
-
-  function runFitGeometry() {
-    if (!App.State.skeletonImage) return;
-    try {
-      App.Status.busy('Building graph + fitting geometry…');
-      const graph = App.GraphBuilder.build(App.State.skeletonImage);
-      App.State.graph = graph;
-      const opts = readOpts();
-      const entities = App.GeometryFitter.fit(graph, opts);
-      App.State.geometry = entities;
-      App.State.sourceSize = { width: App.State.skeletonImage.width, height: App.State.skeletonImage.height };
-      App.Renderer.setSource('vectors', { kind: 'vector', width: App.State.skeletonImage.width, height: App.State.skeletonImage.height, entities });
-      App.Status.ok('Fitted ' + entities.length + ' entities from ' + graph.branches.length + ' traced branches.');
-      $('btnExport').disabled = false; $('btnExport2').disabled = false;
-    } catch (e) {
-      App.Status.err('Geometry fit failed: ' + e.message);
-    }
-  }
-
-  function setRange(id, value) {
-    const el = $(id);
-    el.value = value;
-    const label = $(id + 'Val');
-    if (label) label.textContent = value;
-  }
-
-  /**
-   * The manual sliders' defaults were tuned for a 600dpi render. Scaling the
-   * pixel-sized ones (despeckle/kernel/component-area/epsilon/circle-tol) by
-   * dpi/600 keeps "Auto" sensible at other render DPIs instead of, say,
-   * despeckling away real detail at 1200dpi or leaving noise at 150dpi.
-   */
-  function scaleDpiDefaults(dpi) {
-    const s = dpi / 600;
-    return {
-      despeckle: Math.max(1, Math.round(4 * s)),
-      closeKernel: Math.max(1, Math.round(1 * s)),
-      minComponent: Math.max(1, Math.round(6 * s)),
-      epsilon: Math.max(0.3, +(1.2 * s).toFixed(1)),
-      circleTol: Math.max(0.3, +(1.0 * s).toFixed(1))
-    };
-  }
-
-  /**
-   * One-click processing. CAD-exported PDFs carry their geometry as native
-   * vector paths, so try pulling those straight out of the content stream
-   * first — exact, instant, and no OpenCV/raster memory cost. Only fall back
-   * to the raster pipeline (render -> preprocess -> skeletonize -> fit) when
-   * the page is really a scanned bitmap. A scan often still has a couple of
-   * vector paths (page border box), so a page that contains a raster image
-   * needs more than a handful of paths before we trust the vector route.
-   */
-  async function runAutoProcess() {
-    if (!App.State.pdfDoc) return;
-    $('btnAuto').disabled = true;
-    try {
-      App.Status.busy('Checking for native vector content…');
-      try {
-        const vec = await App.VectorExtractor.extract(App.State.pageIndex);
-        const trustVector = vec.entities.length > 0 && (!vec.hasImage || vec.entities.length >= 5);
-        if (trustVector) {
-          App.State.geometry = vec.entities;
-          App.State.dpi = 72; // coordinates are PDF points
-          App.State.sourceSize = { width: vec.width, height: vec.height };
-          App.Renderer.setSource('vectors', { kind: 'vector', width: vec.width, height: vec.height, entities: vec.entities });
-          $('btnExport').disabled = false; $('btnExport2').disabled = false;
-          switchTab('vectors');
-          App.Status.ok('Extracted ' + vec.entities.length + ' entities directly from PDF vector data — exact geometry, no raster processing needed. Export DXF when ready.');
-          return;
-        }
-        if (vec.hasImage) App.Status.set('No usable native vector data (scanned page) — running raster pipeline…');
-      } catch (e) { /* extraction is best-effort; fall through to raster */ }
-
-      await renderPage();
-      const dpi = readOpts().dpi;
-      const d = scaleDpiDefaults(dpi);
-      setRange('optDespeckle', d.despeckle);
-      setRange('optClose', d.closeKernel);
-      setRange('optMinComponent', d.minComponent);
-      setRange('optEpsilon', d.epsilon);
-      setRange('optCircleTol', d.circleTol);
-
-      if (!App.ImageProcessor.cvReady()) {
-        App.Status.set('Waiting for OpenCV.js to finish loading… auto-process will continue automatically.');
-        await new Promise(resolve => App.CvWait.onReady(resolve));
-      }
-      // Each stage reports its own error via App.Status; stop there instead
-      // of overwriting it with a bogus "Auto-processed (0 entities)" success.
-      runPreprocess();
-      if (!App.State.binaryImage) return;
-      await runSkeletonize();
-      if (!App.State.skeletonImage) return;
-      runFitGeometry();
-      if (!App.State.geometry) return;
-      switchTab('vectors');
-      App.Status.ok('Auto-processed with DPI-scaled defaults (' + App.State.geometry.length + ' entities). Adjust any slider and re-run that stage to refine.');
-    } catch (e) {
-      App.Status.err('Auto process failed: ' + e.message);
-    } finally {
-      $('btnAuto').disabled = false;
-    }
-  }
-
-  function runExport() {
-    if (!App.State.geometry || !App.State.sourceSize) return;
-    const opts = readOpts();
-    const dxf = App.DXFWriter.build(App.State.geometry, App.State.sourceSize.height, opts.units, App.State.dpi);
-    App.State.dxfString = dxf;
-    App.Renderer.setSource('dxfpreview', { kind: 'vector', width: App.State.sourceSize.width, height: App.State.sourceSize.height, entities: App.State.geometry });
-    App.DXFWriter.download(dxf, 'drawing.dxf');
-    App.Status.ok('DXF exported (' + App.State.geometry.length + ' entities).');
-  }
-
-  function switchTab(tab) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-    App.Renderer.setActiveTab(tab);
-  }
-
-  function wire() {
-    ['optDpi','optGauss','optMedian','optAdaptiveBlock','optAdaptiveC','optManualThresh',
-     'optDespeckle','optOpen','optClose','optMinComponent','optEpsilon','optAngleSnap','optCircleTol']
-      .forEach(id => bindRangeLabel(id, id + 'Val'));
-
-    $('optThreshMode').addEventListener('change', () => {
-      const m = $('optThreshMode').value;
-      $('grpAdaptive').style.display = m === 'adaptive' ? '' : 'none';
-      $('grpManual').style.display = m === 'manual' ? '' : 'none';
-    });
-
-    $('btnOpen').addEventListener('click', () => $('fileInput').click());
-    $('fileInput').addEventListener('change', (e) => { if (e.target.files[0]) openFile(e.target.files[0]); });
-
-    $('prevPage').addEventListener('click', () => { if (App.State.pageIndex > 1) { App.State.pageIndex--; updatePageLabel(); highlightThumb(App.State.pageIndex); renderPage(); } });
-    $('nextPage').addEventListener('click', () => { if (App.State.pageIndex < App.State.numPages) { App.State.pageIndex++; updatePageLabel(); highlightThumb(App.State.pageIndex); renderPage(); } });
-
-    $('btnAuto').addEventListener('click', runAutoProcess);
-    $('btnRender').addEventListener('click', renderPage);
-    $('btnPreprocess').addEventListener('click', runPreprocess);
-    $('btnSkeletonize').addEventListener('click', runSkeletonize);
-    $('btnFitGeometry').addEventListener('click', runFitGeometry);
-    $('btnExport').addEventListener('click', runExport);
-    $('btnExport2').addEventListener('click', runExport);
-
-    document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
-
-    $('btnZoomIn').addEventListener('click', () => App.Renderer.zoomBy(1.25));
-    $('btnZoomOut').addEventListener('click', () => App.Renderer.zoomBy(0.8));
-    $('btnZoom100').addEventListener('click', () => App.Renderer.setZoom100());
-    $('btnZoomFit').addEventListener('click', () => App.Renderer.fitToScreen());
-
-    // Live-ish preview: cheap preprocessing controls re-run automatically.
-    const debouncedPreprocess = App.Util.debounce(() => { if (App.State.originalImage) runPreprocess(); }, 350);
-    ['optInvert','optDeskew','optGauss','optMedian','optThreshMode','optAdaptiveBlock','optAdaptiveC',
-     'optManualThresh','optDespeckle','optOpen','optClose','optMinComponent']
-      .forEach(id => $(id).addEventListener('input', debouncedPreprocess));
-    ['optInvert','optDeskew','optThreshMode'].forEach(id => $(id).addEventListener('change', debouncedPreprocess));
-
-    App.Renderer.resizeCanvas();
-  }
-
-  return { wire, openFile };
-})();
-
-/* ------------------------------------------------------------------
- * Boot
- * ------------------------------------------------------------------ */
-window.addEventListener('DOMContentLoaded', () => {
-  App.UIController.wire();
-  if (!window.pdfjsLib) { App.Status.err('pdf.js failed to load (check network access).'); return; }
-
-  App.Status.set('Loading OpenCV.js… (first load can take several seconds)');
-  const failWatch = setInterval(() => {
-    if (window.__cvScriptFailed) {
-      clearInterval(failWatch);
-      App.Status.err('OpenCV.js failed to load (check network access).');
-    }
-  }, 300);
-  App.CvWait.onReady(() => {
-    clearInterval(failWatch);
-    App.Status.ok('Ready. Open a PDF to begin.');
-  });
+}
+$("btnTest").addEventListener("click", () => testApi(false));
+testApi(true);
+
+/* ---- file pick ---- */
+let file = null;
+$("drop").addEventListener("click", () => $("fileInput").click());
+$("fileInput").addEventListener("change", e => setFile(e.target.files[0]));
+$("drop").addEventListener("dragover", e => { e.preventDefault(); $("drop").classList.add("over"); });
+$("drop").addEventListener("dragleave", () => $("drop").classList.remove("over"));
+$("drop").addEventListener("drop", e => {
+  e.preventDefault(); $("drop").classList.remove("over");
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
 });
+function setFile(f) {
+  file = f || null;
+  $("fileName").textContent = f ? `${f.name} (${(f.size / 1048576).toFixed(1)} MB)` : "";
+  $("btnConvert").disabled = !f;
+}
+
+/* ---- stage checklist: real pipeline counters only ---- */
+const STAGES = ["queued", "rendering", "despeckling", "thinning", "tracing", "fitting", "verifying"];
+const describe = {
+  queued:      d => "waiting for a worker slot",
+  rendering:   d => d ? `${d.width}×${d.height}px` + (d.native_dpi ? ` @ native ${d.native_dpi} DPI` : d.dpi ? ` @ ${d.dpi} DPI` : "") : "",
+  despeckling: d => d ? `${d.components} components → ${d.kept} kept (≥${d.min_size_px}px), ${d.ink_px.toLocaleString()} ink px` : "",
+  thinning:    d => d ? `iteration ${d.iteration}, ${d.remaining_px.toLocaleString()} px remaining` : "",
+  tracing:     d => d ? (d.branches != null ? `${d.branches.toLocaleString()} branches` : "") + (d.closed_loops != null ? `, ${d.closed_loops} loops` : "") + (d.dots != null ? `, ${d.dots} dots` : "") + (d.nodes_done ? ` (node ${d.nodes_done.toLocaleString()}/${d.nodes_total.toLocaleString()})` : "") : "",
+  fitting:     d => d ? `branch ${d.branch.toLocaleString()}/${d.total.toLocaleString()}, ${d.entities.toLocaleString()} entities` : "",
+  verifying:   d => d ? `ink covered ${(d.ink_covered_by_vectors * 100).toFixed(1)}%, vectors on ink ${(d.vectors_on_ink * 100).toFixed(1)}%` : "",
+};
+function renderStages(current, detail, doneAll) {
+  const ul = $("stages");
+  ul.innerHTML = "";
+  const idx = STAGES.indexOf(current);
+  STAGES.forEach((s, i) => {
+    const li = document.createElement("li");
+    const done = doneAll || i < idx;
+    const active = !doneAll && i === idx;
+    li.className = done ? "done" : active ? "active" : "";
+    const mark = done ? "✓" : active ? "⟳" : "·";
+    li.innerHTML = `<span class="mark${active ? " spinner" : ""}">${mark}</span>` +
+      `<span class="name">${s}</span>` +
+      `<span class="detail">${(done || active) && lastDetail[s] ? describe[s](lastDetail[s]) : ""}</span>`;
+    ul.appendChild(li);
+  });
+}
+let lastDetail = {};
+
+/* ---- convert + poll ---- */
+let polling = null;
+$("btnConvert").addEventListener("click", async () => {
+  if (!file) return;
+  if (!(await testApi(false))) return;
+  $("btnConvert").disabled = true;
+  $("result").style.display = "none";
+  $("progressCard").style.display = "";
+  lastDetail = {};
+  renderStages("queued", null, false);
+  const st = $("convStatus");
+  st.className = "statusline";
+  st.textContent = "uploading…";
+  try {
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await fetch(api() + "/convert", { method: "POST", body: fd });
+    if (!r.ok) throw new Error((await r.text()) || `upload failed (${r.status})`);
+    const { job_id } = await r.json();
+    st.textContent = "job " + job_id.slice(0, 8);
+    poll(job_id);
+  } catch (e) {
+    st.className = "statusline err";
+    st.textContent = String(e.message || e);
+    $("btnConvert").disabled = false;
+  }
+});
+
+function poll(jobId) {
+  clearInterval(polling);
+  polling = setInterval(async () => {
+    let j;
+    try {
+      const r = await fetch(`${api()}/jobs/${jobId}`);
+      if (!r.ok) throw new Error(`status ${r.status}`);
+      j = await r.json();
+    } catch (e) {
+      return; // transient network blip: keep polling
+    }
+    if (j.progress) lastDetail[j.status] = j.progress;
+    if (j.status === "error") {
+      clearInterval(polling);
+      $("convStatus").className = "statusline err";
+      $("convStatus").textContent = "conversion failed: " + (j.error || "unknown error");
+      $("btnConvert").disabled = false;
+      renderStages(j.status, null, false);
+      return;
+    }
+    if (j.status === "done") {
+      clearInterval(polling);
+      renderStages("verifying", null, true);
+      showResult(jobId, j.result);
+      $("convStatus").className = "statusline ok";
+      $("convStatus").textContent = "done";
+      $("btnConvert").disabled = false;
+      return;
+    }
+    renderStages(j.status, j.progress, false);
+  }, 1500);
+}
+
+function showResult(jobId, res) {
+  const m = $("metrics");
+  const c = res.counts || {};
+  m.innerHTML = "";
+  const items = [
+    [res.entities, "entities"],
+    [c.LINE || 0, "lines"], [c.LWPOLYLINE || 0, "polylines"],
+    [(c.ARC || 0) + (c.CIRCLE || 0), "arcs + circles"], [c.POINT || 0, "dots"],
+    [(res.metrics.vectors_on_ink * 100).toFixed(1) + "%", "vectors on ink"],
+    [res.dpi, "dpi"],
+  ];
+  for (const [v, k] of items) {
+    const d = document.createElement("div");
+    d.className = "metric";
+    d.innerHTML = `<div class="v">${v}</div><div class="k">${k}</div>`;
+    m.appendChild(d);
+  }
+  $("dxfLink").href = `${api()}/jobs/${jobId}/output.dxf`;
+  $("overlayImg").src = `${api()}/jobs/${jobId}/overlay.png`;
+  $("crop1").src = `${api()}/jobs/${jobId}/crop1.png`;
+  $("crop2").src = `${api()}/jobs/${jobId}/crop2.png`;
+  $("result").style.display = "";
+}
 </script>
 </body>
 </html>
