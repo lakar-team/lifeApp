@@ -12,6 +12,7 @@ old status polls.
 import json
 import os
 import shutil
+import tempfile
 import threading
 import time
 import uuid
@@ -22,7 +23,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from . import pipeline
 
-JOB_DIR = os.environ.get("JOB_DIR", "/tmp/pdf2dxf-jobs")
+JOB_DIR = os.environ.get("JOB_DIR", os.path.join(tempfile.gettempdir(), "pdf2dxf-jobs"))
 JOB_TTL_HOURS = float(os.environ.get("JOB_TTL_HOURS", "24"))
 MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "300"))
 # one conversion at a time by default: the pipeline is memory-hungry
@@ -34,9 +35,27 @@ app = FastAPI(title="PDF/PNG -> DXF Vectorizer")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # public personal tool; no cookies/credentials used
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def allow_private_network(request, call_next):
+    # Chrome's Private Network Access preflight: an HTTPS page (the Pages
+    # frontend) calling http://localhost is a "private network request" and
+    # the OPTIONS preflight is rejected unless this header is echoed back.
+    if request.method == "OPTIONS" and \
+            request.headers.get("access-control-request-private-network") == "true":
+        from starlette.responses import Response
+        resp = Response(status_code=200)
+        resp.headers["Access-Control-Allow-Private-Network"] = "true"
+        resp.headers["Access-Control-Allow-Origin"] = request.headers.get("origin", "*")
+        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = \
+            request.headers.get("access-control-request-headers", "*")
+        return resp
+    return await call_next(request)
 
 
 def _job_path(job_id: str) -> str:
