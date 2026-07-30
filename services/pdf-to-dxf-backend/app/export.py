@@ -28,7 +28,7 @@ LAYERS = {
 
 def build_dxf(shapes, decisions, page_h_px: int, dpi: float, out_path: str,
               simplify_px: float = 0.25, large_area_px: float = 15000,
-              thin_thick_split_px: float = 6.0) -> dict:
+              thin_thick_split_px: float = 6.0, run_audit: bool = True) -> dict:
     mm_per_px = 25.4 / dpi
     doc = ezdxf.new("R2010", setup=False)
     doc.header["$INSUNITS"] = 4  # millimetres
@@ -78,6 +78,10 @@ def build_dxf(shapes, decisions, page_h_px: int, dpi: float, out_path: str,
                 pass
 
     doc.saveas(out_path)
-    audit = ezdxf.readfile(out_path).audit()
+    # The audit re-reads the whole DXF into a SECOND ezdxf document -- a large
+    # memory spike on dense drawings. Skippable on memory-constrained hosts.
+    audit_errors = 0
+    if run_audit:
+        audit_errors = len(ezdxf.readfile(out_path).audit().errors)
     return {"path": out_path, "counts": counts, "hatched": hatched,
-            "audit_errors": len(audit.errors)}
+            "audit_errors": audit_errors}

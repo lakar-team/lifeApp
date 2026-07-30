@@ -31,6 +31,18 @@ import fitz  # PyMuPDF
 
 from . import extract, fill, export, pipeline
 
+
+def _rss_mb() -> int:
+    """Current resident memory in MB (Linux), for phase logging; -1 if n/a."""
+    try:
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) // 1024
+    except Exception:
+        pass
+    return -1
+
 # Memory budgeting. The grid is chosen from the ACTUAL page size so the tool
 # adapts per input file, and deliberately aims for comfortable headroom rather
 # than the ragged edge of the host's RAM cap.
@@ -110,6 +122,8 @@ def pdf_to_dxf_auto(pdf_path: str, out_dxf_path: str,
     rows = max(1, math.ceil(H / side))
     tile_w = math.ceil(W / cols)
     tile_h = math.ceil(H / rows)
+    print(f"[tile] page {W}x{H} ({mp:.0f}MP) grid {rows}x{cols} "
+          f"tile~{tile_w}x{tile_h} rss={_rss_mb()}MB", flush=True)
 
     all_shapes: list = []
     decisions: dict = {}
@@ -142,9 +156,12 @@ def pdf_to_dxf_auto(pdf_path: str, out_dxf_path: str,
 
             del ink, tshapes, tdec
             gc.collect()
+            print(f"[tile {r},{c}] kept={len(all_shapes)} rss={_rss_mb()}MB", flush=True)
 
+    print(f"[export] shapes={len(all_shapes)} rss={_rss_mb()}MB", flush=True)
     result = export.build_dxf(all_shapes, decisions, H, native_dpi,
-                              out_dxf_path, simplify_px=simplify_px)
+                              out_dxf_path, simplify_px=simplify_px, run_audit=False)
+    print(f"[export done] rss={_rss_mb()}MB", flush=True)
     result["dpi"] = native_dpi
     result["shape_count"] = len(all_shapes)
     result["tiles"] = rows * cols
