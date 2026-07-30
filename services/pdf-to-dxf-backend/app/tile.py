@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import gc
 import math
+import os
+import shutil
 import time
 
 import numpy as np
@@ -31,7 +33,7 @@ import cv2
 import fitz  # PyMuPDF
 from ezdxf.addons import r12writer
 
-from . import extract, pipeline
+from . import extract, pipeline, render_preview
 
 
 def _layer_for(s) -> str:
@@ -41,6 +43,67 @@ def _layer_for(s) -> str:
     if s.kind == "stroke":
         return "LINE-THICK" if s.width_px >= 6.0 else "LINE-THIN"
     return "SHAPE-OUTLINE"
+
+
+class StreamingPdf:
+    """Minimal single-page vector PDF written by streaming path/stroke
+    operators to a temp content file, so memory stays bounded regardless of
+    entity count (matplotlib/ezdxf-readback would load everything at once and
+    OOM on dense drawings). Exposes the same add_polyline_2d(points, closed,
+    layer) signature as ezdxf's r12writer so the tiling loop is format-agnostic.
+    Points are millimetres with Y already pointing up (PDF's convention)."""
+
+    _K = 72.0 / 25.4  # millimetres -> PDF points
+
+    def __init__(self, out_path: str, width_pt: float, height_pt: float):
+        self.out_path = out_path
+        self.w = width_pt
+        self.h = height_pt
+        self._content_path = out_path + ".content"
+        self._cf = None
+
+    def __enter__(self):
+        self._cf = open(self._content_path, "w")
+        self._cf.write("0.5 w 0 G\n")  # 0.5pt lines, black stroke
+        return self
+
+    def add_polyline_2d(self, points, closed=True, layer=None):
+        k = self._K
+        pts = list(points)
+        if len(pts) < 2:
+            return
+        x0, y0 = pts[0]
+        buf = [f"{x0 * k:.2f} {y0 * k:.2f} m"]
+        for x, y in pts[1:]:
+            buf.append(f"{x * k:.2f} {y * k:.2f} l")
+        if closed:
+            buf.append("h")
+        buf.append("S")
+        self._cf.write(" ".join(buf) + "\n")
+
+    def __exit__(self, *exc):
+        self._cf.close()
+        clen = os.path.getsize(self._content_path)
+        with open(self.out_path, "wb") as f:
+            def w(s):
+                f.write(s.encode("latin-1"))
+            off = {}
+            w("%PDF-1.4\n")
+            off[1] = f.tell(); w("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n")
+            off[2] = f.tell(); w("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
+            off[3] = f.tell(); w(f"3 0 obj\n<< /Type /Page /Parent 2 0 R "
+                                 f"/MediaBox [0 0 {self.w:.2f} {self.h:.2f}] /Contents 4 0 R >>\nendobj\n")
+            off[4] = f.tell(); w(f"4 0 obj\n<< /Length {clen} >>\nstream\n")
+            with open(self._content_path, "rb") as cf:
+                shutil.copyfileobj(cf, f, 1 << 20)
+            w("\nendstream\nendobj\n")
+            xref = f.tell()
+            w("xref\n0 5\n0000000000 65535 f \n")
+            for i in range(1, 5):
+                w(f"{off[i]:010d} 00000 n \n")
+            w(f"trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n")
+        os.remove(self._content_path)
+        return False
 
 
 def _rss_mb() -> int:
@@ -98,14 +161,14 @@ def _offset_shape(s, gx: int, gy: int) -> None:
     s.bbox = (x0 + gx, y0 + gy, x1 + gx, y1 + gy)
 
 
-def pdf_to_dxf_auto(pdf_path: str, out_dxf_path: str,
+def pdf_to_dxf_auto(pdf_path: str, out_path: str, fmt: str = "dxf",
                     min_area_px: int = 4,
                     hole_area_frac_max: float = 0.35,
                     simplify_px: float = 0.25,
                     page_num: int = 0) -> dict:
-    """Convert a PDF page to DXF, tiling automatically if the page is too
-    large to process in one pass. Returns the same result dict as
-    pipeline.pdf_to_dxf, plus 'tiles'/'grid'/'megapixels'."""
+    """Convert a PDF page to `out_path` in `fmt` ('dxf' or vectorized 'pdf'),
+    tiling automatically when the page is too large to process in one pass.
+    Both output formats stream per tile, so memory stays bounded."""
     t0 = time.time()
     doc = fitz.open(pdf_path)
     page = doc[page_num]
@@ -116,15 +179,25 @@ def pdf_to_dxf_auto(pdf_path: str, out_dxf_path: str,
     mp = W * H / 1e6
 
     if mp <= SAFE_SINGLE_PASS_MP:
-        # Small enough: use the original single-pass path verbatim.
-        result = pipeline.pdf_to_dxf(
-            pdf_path, out_dxf_path, min_area_px=min_area_px,
-            hole_area_frac_max=hole_area_frac_max, simplify_px=simplify_px,
-            page_num=page_num)
+        # Small enough for one pass: use the original pipeline (which keeps
+        # fills), and render a preview PDF from the DXF if PDF was requested.
+        if fmt == "pdf":
+            dxf_tmp = out_path + ".dxf"
+            result = pipeline.pdf_to_dxf(
+                pdf_path, dxf_tmp, min_area_px=min_area_px,
+                hole_area_frac_max=hole_area_frac_max, simplify_px=simplify_px,
+                page_num=page_num)
+            render_preview.render_dxf_to_pdf(dxf_tmp, out_path)
+            os.remove(dxf_tmp)
+        else:
+            result = pipeline.pdf_to_dxf(
+                pdf_path, out_path, min_area_px=min_area_px,
+                hole_area_frac_max=hole_area_frac_max, simplify_px=simplify_px,
+                page_num=page_num)
         result["tiles"] = 1
         result["grid"] = "1x1"
         result["megapixels"] = round(mp, 1)
-        result["timing_s"]["total"] = round(time.time() - t0, 1)
+        result.setdefault("timing_s", {})["total"] = round(time.time() - t0, 1)
         return result
 
     # Choose a grid so each tile is ~<= TARGET_TILE_MP, roughly square tiles.
@@ -134,15 +207,21 @@ def pdf_to_dxf_auto(pdf_path: str, out_dxf_path: str,
     tile_w = math.ceil(W / cols)
     tile_h = math.ceil(H / rows)
     print(f"[tile] page {W}x{H} ({mp:.0f}MP) grid {rows}x{cols} "
-          f"tile~{tile_w}x{tile_h} rss={_rss_mb()}MB", flush=True)
+          f"tile~{tile_w}x{tile_h} fmt={fmt} rss={_rss_mb()}MB", flush=True)
 
-    # Stream entities straight to the DXF (R12) so we never hold all shapes
-    # or a full in-memory document: memory stays bounded to a single tile no
-    # matter how dense the drawing. Coordinates are converted to global mm
-    # inline (Y flipped to DXF's upward axis using the full page height).
+    # Stream entities straight to the output (DXF via r12writer, or vector PDF
+    # via StreamingPdf) so we never hold all shapes or a full in-memory
+    # document: memory stays bounded to a single tile no matter how dense the
+    # drawing. Coordinates go to global mm inline (Y flipped to the upward axis
+    # both formats use, via the full page height).
     mm_per_px = 25.4 / native_dpi
+    if fmt == "pdf":
+        sink = StreamingPdf(out_path, W * 72.0 / native_dpi, H * 72.0 / native_dpi)
+    else:
+        sink = r12writer(out_path)
+
     n_entities = 0
-    with r12writer(out_dxf_path) as dxf:
+    with sink as out:
         for r in range(rows):
             for c in range(cols):
                 cx0, cy0 = c * tile_w, r * tile_h
@@ -171,16 +250,16 @@ def pdf_to_dxf_auto(pdf_path: str, out_dxf_path: str,
                         continue
                     poly = [((px + rx0) * mm_per_px, (H - (py + ry0)) * mm_per_px)
                             for px, py in pts[:, 0, :]]
-                    dxf.add_polyline_2d(poly, closed=True, layer=_layer_for(s))
+                    out.add_polyline_2d(poly, closed=True, layer=_layer_for(s))
                     n_entities += 1
 
                 del ink, tshapes
                 gc.collect()
                 print(f"[tile {r},{c}] entities={n_entities} rss={_rss_mb()}MB", flush=True)
 
-    print(f"[done] entities={n_entities} rss={_rss_mb()}MB", flush=True)
+    print(f"[done] entities={n_entities} fmt={fmt} rss={_rss_mb()}MB", flush=True)
     return {
-        "path": out_dxf_path, "shape_count": n_entities, "audit_errors": 0,
+        "path": out_path, "shape_count": n_entities, "audit_errors": 0,
         "counts": {}, "dpi": native_dpi, "tiles": rows * cols,
         "grid": f"{rows}x{cols}", "megapixels": round(mp, 1),
         "timing_s": {"total": round(time.time() - t0, 1)},

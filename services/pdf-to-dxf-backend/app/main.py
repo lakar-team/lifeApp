@@ -85,33 +85,23 @@ def convert(file: UploadFile = File(...), format: str = "dxf"):
     fmt = format.lower()
     if fmt not in ("dxf", "pdf"):
         raise HTTPException(400, "format must be 'dxf' or 'pdf'")
+    ext = "pdf" if fmt == "pdf" else "dxf"
     with tempfile.TemporaryDirectory() as tmp:
         pdf_path = _save_upload(file, tmp)
-        dxf_path = os.path.join(tmp, "output.dxf")
+        out_path = os.path.join(tmp, f"output.{ext}")
         try:
-            result = pdf_to_dxf_auto(pdf_path, dxf_path)
+            result = pdf_to_dxf_auto(pdf_path, out_path, fmt=fmt)
         except Exception as e:
             raise HTTPException(500, f"Conversion failed: {e}")
 
-        headers = {"X-Shape-Count": str(result["shape_count"]),
-                   "X-Audit-Errors": str(result["audit_errors"])}
-
-        # copy the artifact out of the tempdir before it's cleaned up
-        if fmt == "pdf":
-            pdf_out = os.path.join(tmp, "output.pdf")
-            try:
-                render_dxf_to_pdf(dxf_path, pdf_out)
-            except Exception as e:
-                raise HTTPException(500, f"PDF render failed: {e}")
-            persist_path = f"/tmp/{uuid.uuid4().hex}.pdf"
-            os.rename(pdf_out, persist_path)
-            return FileResponse(persist_path, media_type="application/pdf",
-                                filename="converted.pdf", headers=headers)
-
-        persist_path = f"/tmp/{uuid.uuid4().hex}.dxf"
-        os.rename(dxf_path, persist_path)
-        return FileResponse(persist_path, media_type="image/vnd.dxf",
-                            filename="converted.dxf", headers=headers)
+        headers = {"X-Shape-Count": str(result.get("shape_count", 0)),
+                   "X-Audit-Errors": str(result.get("audit_errors", 0))}
+        # copy out of the tempdir before it's cleaned up
+        persist_path = f"/tmp/{uuid.uuid4().hex}.{ext}"
+        os.rename(out_path, persist_path)
+        media = "application/pdf" if fmt == "pdf" else "image/vnd.dxf"
+        return FileResponse(persist_path, media_type=media,
+                            filename=f"converted.{ext}", headers=headers)
 
 
 @app.post("/convert/info")
