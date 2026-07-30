@@ -53,6 +53,11 @@ button.primary:hover:not(:disabled){background:var(--accent)}
 .warm .dot{display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--warn);
   margin-right:6px; vertical-align:middle}
 .warm.ready .dot{background:var(--good)}
+.fmt{display:flex; align-items:center; gap:16px; margin-top:14px; font-size:13px; flex-wrap:wrap}
+.fmt-label{color:var(--text-dim2); text-transform:uppercase; letter-spacing:.05em; font-size:11px}
+.fmt label{display:flex; align-items:center; gap:6px; cursor:pointer}
+.fmt-sub{color:var(--text-dim2); font-size:12px}
+.fmt input{accent-color:var(--accent)}
 @keyframes spin{to{transform:rotate(360deg)}}
 .spinner{display:inline-block; animation:spin 1.1s linear infinite}
 </style>
@@ -72,8 +77,13 @@ button.primary:hover:not(:disabled){background:var(--accent)}
       <div id="fileName"></div>
     </div>
     <input type="file" id="fileInput" accept="application/pdf" hidden>
+    <div class="fmt">
+      <span class="fmt-label">Output</span>
+      <label><input type="radio" name="fmt" value="dxf" checked> DXF <span class="fmt-sub">— editable CAD</span></label>
+      <label><input type="radio" name="fmt" value="pdf"> Vector PDF <span class="fmt-sub">— viewable</span></label>
+    </div>
     <div class="row" style="margin-top:14px">
-      <button class="primary" id="btnConvert" disabled>Convert to DXF</button>
+      <button class="primary" id="btnConvert" disabled>Convert</button>
       <p class="statusline" id="convStatus"></p>
     </div>
     <div class="warm" id="warm"><span class="dot"></span><span id="warmText">waking the converter&hellip;</span></div>
@@ -136,14 +146,16 @@ function setStatus(kind, msg){
 /* ---- convert (single blocking request; no server-side progress stream) ---- */
 $("btnConvert").addEventListener("click", async () => {
   if (!file) return;
+  const fmt = document.querySelector('input[name="fmt"]:checked').value;
   $("btnConvert").disabled = true;
   $("result").style.display = "none";
 
   // rotating reassurance while the one request is in flight
   const t0 = Date.now();
-  const msgs = warm
-    ? ["tracing contours…", "extracting shapes…", "deciding fills…", "writing DXF…"]
-    : ["waking the converter (cold start, up to a minute)…", "tracing contours…", "extracting shapes…", "writing DXF…"];
+  const base = warm
+    ? ["tracing contours…", "extracting shapes…", "writing output…"]
+    : ["waking the converter (cold start, up to a minute)…", "tracing contours…", "extracting shapes…", "writing output…"];
+  const msgs = fmt === "pdf" ? base.concat(["rendering vector PDF…"]) : base;
   let mi = 0;
   setStatus("", `⟳ ${msgs[0]}`);
   const spin = setInterval(() => {
@@ -157,7 +169,7 @@ $("btnConvert").addEventListener("click", async () => {
   try {
     const fd = new FormData();
     fd.append("file", file);
-    const r = await fetch(BACKEND + "/convert", { method:"POST", body:fd, signal:ctrl.signal });
+    const r = await fetch(BACKEND + "/convert?format=" + fmt, { method:"POST", body:fd, signal:ctrl.signal });
     if (!r.ok) {
       let detail = `conversion failed (HTTP ${r.status})`;
       try { const t = await r.text(); if (t) detail = t; } catch(e){}
@@ -166,7 +178,7 @@ $("btnConvert").addEventListener("click", async () => {
     const blob = await r.blob();
     const shapes = r.headers.get("X-Shape-Count");
     const audit  = r.headers.get("X-Audit-Errors");
-    showResult(blob, shapes, audit, (Date.now()-t0)/1000);
+    showResult(blob, shapes, audit, (Date.now()-t0)/1000, fmt);
     setStatus("ok", `done in ${((Date.now()-t0)/1000).toFixed(1)}s`);
     warm = true; setWarm(true, "converter ready");
   } catch (e) {
@@ -179,23 +191,27 @@ $("btnConvert").addEventListener("click", async () => {
   }
 });
 
-function showResult(blob, shapes, audit, secs){
+function showResult(blob, shapes, audit, secs, fmt){
   const url = URL.createObjectURL(blob);
-  const outName = (file.name || "drawing.pdf").replace(/\.[^.]+$/, "") + ".dxf";
+  const ext = fmt === "pdf" ? ".pdf" : ".dxf";
+  const outName = (file.name || "drawing.pdf").replace(/\.[^.]+$/, "") + ext;
   const link = $("dxfLink");
   link.href = url; link.download = outName;
+  link.textContent = fmt === "pdf" ? "Download vector PDF" : "Download DXF";
 
   const items = [];
   if (shapes != null) items.push([Number(shapes).toLocaleString(), "shapes traced"]);
   if (audit != null)  items.push([Number(audit).toLocaleString(), "audit errors"]);
-  items.push([(blob.size/1024).toFixed(0) + " KB", "DXF size"]);
+  items.push([(blob.size/1024).toFixed(0) + " KB", "file size"]);
   items.push([secs.toFixed(1) + "s", "time"]);
   $("metrics").innerHTML = items.map(([v,k]) =>
     `<div class="metric"><div class="v">${v}</div><div class="k">${k}</div></div>`).join("");
 
   $("resultHint").innerHTML = (Number(audit) > 0)
-    ? `<b style="color:var(--warn)">${audit} audit warning(s)</b> — the DXF opens fine, but a few entities were flagged during validation. Check them in CAD.`
-    : "Saved as <code>" + outName + "</code>. Units are millimetres (scaled from the scan's native DPI).";
+    ? `<b style="color:var(--warn)">${audit} audit warning(s)</b> — the file opens fine, but a few entities were flagged during validation. Check them in CAD.`
+    : "Saved as <code>" + outName + "</code>. " + (fmt === "pdf"
+        ? "Vector PDF — every line/arc is a real vector path, not a raster."
+        : "DXF units are millimetres (scaled from the scan's native DPI).");
   $("result").style.display = "";
   $("result").scrollIntoView({ behavior:"smooth", block:"nearest" });
 }

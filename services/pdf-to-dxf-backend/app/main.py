@@ -29,6 +29,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .pipeline import pdf_to_dxf
 from .tile import pdf_to_dxf_auto
 from .load_pdf import probe_geometry
+from .render_preview import render_dxf_to_pdf
 
 app = FastAPI(title="PDF-to-DXF Contour Trace Service")
 
@@ -75,8 +76,15 @@ def _save_upload(file: UploadFile, dest_dir: str) -> str:
     return path
 
 
+# NOTE: sync `def` (not async) on purpose. FastAPI runs sync endpoints in a
+# worker thread, so this multi-second CPU-bound conversion does NOT block the
+# event loop -- /health keeps responding and Render won't kill the instance
+# mid-convert. (numpy/opencv also release the GIL during heavy C work.)
 @app.post("/convert")
-async def convert(file: UploadFile = File(...)):
+def convert(file: UploadFile = File(...), format: str = "dxf"):
+    fmt = format.lower()
+    if fmt not in ("dxf", "pdf"):
+        raise HTTPException(400, "format must be 'dxf' or 'pdf'")
     with tempfile.TemporaryDirectory() as tmp:
         pdf_path = _save_upload(file, tmp)
         dxf_path = os.path.join(tmp, "output.dxf")
@@ -85,19 +93,29 @@ async def convert(file: UploadFile = File(...)):
         except Exception as e:
             raise HTTPException(500, f"Conversion failed: {e}")
 
-        # copy out of the tempdir before it's cleaned up
+        headers = {"X-Shape-Count": str(result["shape_count"]),
+                   "X-Audit-Errors": str(result["audit_errors"])}
+
+        # copy the artifact out of the tempdir before it's cleaned up
+        if fmt == "pdf":
+            pdf_out = os.path.join(tmp, "output.pdf")
+            try:
+                render_dxf_to_pdf(dxf_path, pdf_out)
+            except Exception as e:
+                raise HTTPException(500, f"PDF render failed: {e}")
+            persist_path = f"/tmp/{uuid.uuid4().hex}.pdf"
+            os.rename(pdf_out, persist_path)
+            return FileResponse(persist_path, media_type="application/pdf",
+                                filename="converted.pdf", headers=headers)
+
         persist_path = f"/tmp/{uuid.uuid4().hex}.dxf"
         os.rename(dxf_path, persist_path)
-        return FileResponse(
-            persist_path, media_type="image/vnd.dxf",
-            filename="converted.dxf",
-            headers={"X-Shape-Count": str(result["shape_count"]),
-                     "X-Audit-Errors": str(result["audit_errors"])},
-        )
+        return FileResponse(persist_path, media_type="image/vnd.dxf",
+                            filename="converted.dxf", headers=headers)
 
 
 @app.post("/convert/info")
-async def convert_info(file: UploadFile = File(...)):
+def convert_info(file: UploadFile = File(...)):
     with tempfile.TemporaryDirectory() as tmp:
         pdf_path = _save_upload(file, tmp)
         dxf_path = os.path.join(tmp, "output.dxf")
