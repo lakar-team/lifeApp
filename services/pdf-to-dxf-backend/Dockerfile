@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # libgl1/libglib2.0-0 are required by opencv-python-headless at import
 # time even though it's the "headless" build -- skipping these produces
