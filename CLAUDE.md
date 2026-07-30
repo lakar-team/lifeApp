@@ -30,18 +30,26 @@ the wiki — check it before non-trivial work here.
   local portal, not the deployed backend. Production is Cloudflare Pages
   (`public/` + `functions/`).
 
+## The pdf-to-dxf backend (Render)
+
+`services/pdf-to-dxf-backend/` is a Python FastAPI contour-tracing service
+deployed to **Render** (free Docker web service, `pdf-to-dxf-2zcz.onrender.com`,
+Lakarteam2025) that the `public/apps/pdf-to-dxf/` frontend POSTs to. It's the
+deploy copy of `../pdf to dxf/dxf_contour_service/` — keep them in sync.
+Fitting the 512MB free tier took adaptive tiling + streamed output + per-request
+subprocess isolation; see [[pdf-to-dxf]] and the service's own `CLAUDE.md`
+before changing it. Render pulls this repo publicly (no push webhook) — trigger
+a deploy via the Render API/dashboard after pushing backend changes.
+
 ## Code changes — fix root causes, not symptoms
 
 Drive-wide rule applies here (see the root `CLAUDE.md`): prefer a structural
 fix over a symptom patch, and say so explicitly if a quick patch really is
-the right call. Relevant open case: [[pdf-to-dxf]] is *not* fixed by hosting
-the missing `opencv.js` — that only revives an abandoned approach; the real
-work is wiring the intended backend contour service. Confirm direction with
-Adam before building.
+the right call.
 
 <!-- wiki-chain
 id: lifeapp-claude
-status: ADAMTOOL tools directory (Cloudflare Pages + Supabase), live at adamtool.online; 9 tools deployed under public/apps/. pdf-to-dxf designed for it but not yet deployed/working.
-updated: 2026-07-30
+status: ADAMTOOL tools directory (Cloudflare Pages + Supabase), live at adamtool.online; 10 tools under public/apps/ incl. pdf-to-dxf (contour PDF->DXF/vector-PDF; backend in services/pdf-to-dxf-backend on Render free tier, made to fit 512MB via tiling + subprocess isolation, live 2026-07-31).
+updated: 2026-07-31
 links: [adamtool, pdf-to-dxf, ai-platforms-claude]
 -->
