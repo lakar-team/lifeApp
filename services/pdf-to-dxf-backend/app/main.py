@@ -1,38 +1,37 @@
 """
-FastAPI service: upload a PDF, get back a DXF (contour trace).
+FastAPI service: upload a PDF, get back a DXF or a vector PDF (contour trace).
 
 Endpoints:
-  POST /convert       -- upload PDF, returns the DXF file directly
-  POST /convert/info   -- upload PDF, returns JSON stats (no file body),
-                          useful for the frontend to show progress/counts
-                          before offering the download
-  GET  /health         -- liveness check
+  POST /convert?format=dxf|pdf  -- upload PDF, returns the converted file
+  POST /probe                   -- upload PDF, returns size/DPI/memory estimate
+  GET  /health                  -- liveness check
+
+Memory design: the heavy conversion runs in a SHORT-LIVED SUBPROCESS
+(app.convert_cli), so all the memory it touches -- including one-time
+OpenCV/scipy warm-up that never frees within a process -- is reclaimed by the
+OS when the child exits. The long-lived server therefore stays lean and RSS
+does not ratchet past the 512MB cap across successive conversions. To keep the
+parent light it deliberately does NOT import numpy/opencv/etc. at module load;
+those live only in the child (and in the lazily-imported /probe path).
 
 Run locally:
   uvicorn app.main:app --reload
-
-This is intentionally a thin wrapper. All the actual logic lives in
-pipeline.py / extract.py / fill.py / export.py -- keep it that way so
-this file doesn't accumulate business logic that's hard to test
-without spinning up a server.
 """
 from __future__ import annotations
 
-import ctypes
-import gc
+import json
 import os
+import shutil
+import subprocess
+import sys
 import tempfile
 import threading
 import uuid
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-
-from .pipeline import pdf_to_dxf
-from .tile import pdf_to_dxf_auto, _rss_mb
-from .load_pdf import probe_geometry
-from .render_preview import render_dxf_to_pdf
+from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 
 app = FastAPI(title="PDF-to-DXF Contour Trace Service")
 
@@ -48,37 +47,21 @@ app.add_middleware(
 )
 
 MAX_UPLOAD_MB = 50
-
-# One heavy conversion at a time -- two concurrent ~400MB conversions would
-# blow the 512MB cap. Serialise them.
+CONVERT_TIMEOUT_S = 290
+# One heavy conversion at a time: two concurrent children would together blow
+# the 512MB cap. Serialise them.
 _CONVERT_LOCK = threading.Semaphore(1)
 
 
-def _release_memory():
-    """Return freed heap to the OS after a conversion. Large numpy buffers are
-    mmap'd and released on free, but glibc retains small-alloc arenas, so RSS
-    ratchets up across requests and the next conversion OOMs -- malloc_trim
-    hands that memory back so each conversion starts from a low baseline."""
-    gc.collect()
+def _rss_mb() -> int:
     try:
-        ctypes.CDLL("libc.so.6").malloc_trim(0)
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) // 1024
     except Exception:
         pass
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
-
-@app.post("/probe")
-async def probe(file: UploadFile = File(...)):
-    with tempfile.TemporaryDirectory() as tmp:
-        pdf_path = _save_upload(file, tmp)
-        try:
-            return probe_geometry(pdf_path)
-        except Exception as e:
-            raise HTTPException(500, f"probe failed: {e}")
+    return -1
 
 
 def _save_upload(file: UploadFile, dest_dir: str) -> str:
@@ -95,10 +78,22 @@ def _save_upload(file: UploadFile, dest_dir: str) -> str:
     return path
 
 
-# NOTE: sync `def` (not async) on purpose. FastAPI runs sync endpoints in a
-# worker thread, so this multi-second CPU-bound conversion does NOT block the
-# event loop -- /health keeps responding and Render won't kill the instance
-# mid-convert. (numpy/opencv also release the GIL during heavy C work.)
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
+@app.post("/probe")
+async def probe(file: UploadFile = File(...)):
+    from .load_pdf import probe_geometry  # lazy import: keep the parent lean
+    with tempfile.TemporaryDirectory() as tmp:
+        pdf_path = _save_upload(file, tmp)
+        try:
+            return probe_geometry(pdf_path)
+        except Exception as e:
+            raise HTTPException(500, f"probe failed: {e}")
+
+
 @app.post("/convert")
 def convert(file: UploadFile = File(...), format: str = "dxf"):
     fmt = format.lower()
@@ -106,36 +101,50 @@ def convert(file: UploadFile = File(...), format: str = "dxf"):
         raise HTTPException(400, "format must be 'dxf' or 'pdf'")
     ext = "pdf" if fmt == "pdf" else "dxf"
     with _CONVERT_LOCK:
+        # A persisted work dir (not an auto-cleaned tempdir) so FileResponse can
+        # stream the output after the handler returns; removed by a background
+        # task once the response is sent.
+        work = tempfile.mkdtemp(prefix="pdf2dxf-")
         try:
-            with tempfile.TemporaryDirectory() as tmp:
-                pdf_path = _save_upload(file, tmp)
-                out_path = os.path.join(tmp, f"output.{ext}")
-                print(f"[convert] start fmt={fmt} rss={_rss_mb()}MB", flush=True)
+            pdf_path = _save_upload(file, work)
+            out_path = os.path.join(work, f"output.{ext}")
+            print(f"[convert] start fmt={fmt} parent_rss={_rss_mb()}MB", flush=True)
+            try:
+                proc = subprocess.run(
+                    [sys.executable, "-m", "app.convert_cli", pdf_path, out_path, fmt],
+                    timeout=CONVERT_TIMEOUT_S,
+                )
+            except subprocess.TimeoutExpired:
+                shutil.rmtree(work, ignore_errors=True)
+                raise HTTPException(504, "Conversion timed out")
+            finally:
+                print(f"[convert] end parent_rss={_rss_mb()}MB", flush=True)
+
+            if proc.returncode != 0 or not os.path.exists(out_path):
+                shutil.rmtree(work, ignore_errors=True)
+                raise HTTPException(
+                    500, f"Conversion failed (worker exit {proc.returncode}); "
+                         "the drawing may be too large for the free tier.")
+
+            result = {}
+            res_path = out_path + ".result.json"
+            if os.path.exists(res_path):
                 try:
-                    result = pdf_to_dxf_auto(pdf_path, out_path, fmt=fmt)
-                except Exception as e:
-                    raise HTTPException(500, f"Conversion failed: {e}")
+                    with open(res_path) as f:
+                        result = json.load(f)
+                except Exception:
+                    pass
 
-                headers = {"X-Shape-Count": str(result.get("shape_count", 0)),
-                           "X-Audit-Errors": str(result.get("audit_errors", 0))}
-                # copy out of the tempdir before it's cleaned up
-                persist_path = f"/tmp/{uuid.uuid4().hex}.{ext}"
-                os.rename(out_path, persist_path)
+            headers = {"X-Shape-Count": str(result.get("shape_count", 0)),
+                       "X-Audit-Errors": str(result.get("audit_errors", 0))}
             media = "application/pdf" if fmt == "pdf" else "image/vnd.dxf"
-            return FileResponse(persist_path, media_type=media,
-                                filename=f"converted.{ext}", headers=headers)
-        finally:
-            _release_memory()
-            print(f"[convert] end rss={_rss_mb()}MB", flush=True)
-
-
-@app.post("/convert/info")
-def convert_info(file: UploadFile = File(...)):
-    with tempfile.TemporaryDirectory() as tmp:
-        pdf_path = _save_upload(file, tmp)
-        dxf_path = os.path.join(tmp, "output.dxf")
-        try:
-            result = pdf_to_dxf_auto(pdf_path, dxf_path)
+            return FileResponse(
+                out_path, media_type=media, filename=f"converted.{ext}",
+                headers=headers,
+                background=BackgroundTask(shutil.rmtree, work, ignore_errors=True),
+            )
+        except HTTPException:
+            raise
         except Exception as e:
+            shutil.rmtree(work, ignore_errors=True)
             raise HTTPException(500, f"Conversion failed: {e}")
-        return JSONResponse(result)

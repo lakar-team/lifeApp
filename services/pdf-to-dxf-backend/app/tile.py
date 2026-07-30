@@ -33,7 +33,7 @@ import cv2
 import fitz  # PyMuPDF
 from ezdxf.addons import r12writer
 
-from . import extract, pipeline, render_preview
+from . import extract, pipeline
 
 
 def _layer_for(s) -> str:
@@ -182,6 +182,7 @@ def pdf_to_dxf_auto(pdf_path: str, out_path: str, fmt: str = "dxf",
         # Small enough for one pass: use the original pipeline (which keeps
         # fills), and render a preview PDF from the DXF if PDF was requested.
         if fmt == "pdf":
+            from . import render_preview  # lazy: only the small-PDF path needs matplotlib
             dxf_tmp = out_path + ".dxf"
             result = pipeline.pdf_to_dxf(
                 pdf_path, dxf_tmp, min_area_px=min_area_px,
