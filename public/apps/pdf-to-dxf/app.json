@@ -3,7 +3,7 @@
   "slug": "pdf-to-dxf",
   "path": "/apps/pdf-to-dxf/",
   "icon": "ruler",
-  "description": "Trace scanned blueprints (PDF or PNG) into millimetre-accurate DXF drawings, server-side at native scan resolution.",
+  "description": "Trace scanned engineering & architectural PDFs into millimetre-scaled DXF drawings by true ink boundary — no centerline thinning, so fine detail and text stay readable.",
   "status": "live",
   "sort_order": 24,
   "tags": [

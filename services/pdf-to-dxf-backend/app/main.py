@@ -30,13 +30,15 @@ from .pipeline import pdf_to_dxf
 
 app = FastAPI(title="PDF-to-DXF Contour Trace Service")
 
-# Adjust allow_origins to the actual frontend domain before going live;
-# "*" is fine for local testing, not for production.
+# Restricted to the ADAMTOOL frontend origins (custom domain + any Cloudflare
+# Pages preview subdomain) plus localhost for dev. expose_headers lets the
+# browser read the conversion stats returned on /convert.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=r"https://([a-z0-9-]+\.)*adamtool\.(online|pages\.dev)|http://localhost(:\d+)?",
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Shape-Count", "X-Audit-Errors"],
 )
 
 MAX_UPLOAD_MB = 50
