@@ -15,7 +15,8 @@ RUN useradd -m -u 1000 user
 ENV HOME=/home/user \
     MPLCONFIGDIR=/home/user/.cache/matplotlib \
     PATH=/home/user/.local/bin:$PATH \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    MALLOC_ARENA_MAX=2
 
 WORKDIR /home/user/app
 

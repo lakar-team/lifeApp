@@ -18,8 +18,11 @@ without spinning up a server.
 """
 from __future__ import annotations
 
+import ctypes
+import gc
 import os
 import tempfile
+import threading
 import uuid
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
@@ -27,7 +30,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from .pipeline import pdf_to_dxf
-from .tile import pdf_to_dxf_auto
+from .tile import pdf_to_dxf_auto, _rss_mb
 from .load_pdf import probe_geometry
 from .render_preview import render_dxf_to_pdf
 
@@ -45,6 +48,22 @@ app.add_middleware(
 )
 
 MAX_UPLOAD_MB = 50
+
+# One heavy conversion at a time -- two concurrent ~400MB conversions would
+# blow the 512MB cap. Serialise them.
+_CONVERT_LOCK = threading.Semaphore(1)
+
+
+def _release_memory():
+    """Return freed heap to the OS after a conversion. Large numpy buffers are
+    mmap'd and released on free, but glibc retains small-alloc arenas, so RSS
+    ratchets up across requests and the next conversion OOMs -- malloc_trim
+    hands that memory back so each conversion starts from a low baseline."""
+    gc.collect()
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
 
 
 @app.get("/health")
@@ -86,22 +105,28 @@ def convert(file: UploadFile = File(...), format: str = "dxf"):
     if fmt not in ("dxf", "pdf"):
         raise HTTPException(400, "format must be 'dxf' or 'pdf'")
     ext = "pdf" if fmt == "pdf" else "dxf"
-    with tempfile.TemporaryDirectory() as tmp:
-        pdf_path = _save_upload(file, tmp)
-        out_path = os.path.join(tmp, f"output.{ext}")
+    with _CONVERT_LOCK:
         try:
-            result = pdf_to_dxf_auto(pdf_path, out_path, fmt=fmt)
-        except Exception as e:
-            raise HTTPException(500, f"Conversion failed: {e}")
+            with tempfile.TemporaryDirectory() as tmp:
+                pdf_path = _save_upload(file, tmp)
+                out_path = os.path.join(tmp, f"output.{ext}")
+                print(f"[convert] start fmt={fmt} rss={_rss_mb()}MB", flush=True)
+                try:
+                    result = pdf_to_dxf_auto(pdf_path, out_path, fmt=fmt)
+                except Exception as e:
+                    raise HTTPException(500, f"Conversion failed: {e}")
 
-        headers = {"X-Shape-Count": str(result.get("shape_count", 0)),
-                   "X-Audit-Errors": str(result.get("audit_errors", 0))}
-        # copy out of the tempdir before it's cleaned up
-        persist_path = f"/tmp/{uuid.uuid4().hex}.{ext}"
-        os.rename(out_path, persist_path)
-        media = "application/pdf" if fmt == "pdf" else "image/vnd.dxf"
-        return FileResponse(persist_path, media_type=media,
-                            filename=f"converted.{ext}", headers=headers)
+                headers = {"X-Shape-Count": str(result.get("shape_count", 0)),
+                           "X-Audit-Errors": str(result.get("audit_errors", 0))}
+                # copy out of the tempdir before it's cleaned up
+                persist_path = f"/tmp/{uuid.uuid4().hex}.{ext}"
+                os.rename(out_path, persist_path)
+            media = "application/pdf" if fmt == "pdf" else "image/vnd.dxf"
+            return FileResponse(persist_path, media_type=media,
+                                filename=f"converted.{ext}", headers=headers)
+        finally:
+            _release_memory()
+            print(f"[convert] end rss={_rss_mb()}MB", flush=True)
 
 
 @app.post("/convert/info")
