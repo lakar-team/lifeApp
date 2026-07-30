@@ -27,9 +27,20 @@ import math
 import time
 
 import numpy as np
+import cv2
 import fitz  # PyMuPDF
+from ezdxf.addons import r12writer
 
-from . import extract, fill, export, pipeline
+from . import extract, pipeline
+
+
+def _layer_for(s) -> str:
+    """Pick a DXF layer for a shape (fill/hatch omitted -- outlines only)."""
+    if s.kind == "region":
+        return "SHAPE-INTERIOR"
+    if s.kind == "stroke":
+        return "LINE-THICK" if s.width_px >= 6.0 else "LINE-THIN"
+    return "SHAPE-OUTLINE"
 
 
 def _rss_mb() -> int:
@@ -125,47 +136,52 @@ def pdf_to_dxf_auto(pdf_path: str, out_dxf_path: str,
     print(f"[tile] page {W}x{H} ({mp:.0f}MP) grid {rows}x{cols} "
           f"tile~{tile_w}x{tile_h} rss={_rss_mb()}MB", flush=True)
 
-    all_shapes: list = []
-    decisions: dict = {}
-    for r in range(rows):
-        for c in range(cols):
-            # core (owned) region for this tile
-            cx0, cy0 = c * tile_w, r * tile_h
-            cx1, cy1 = min(W, cx0 + tile_w), min(H, cy0 + tile_h)
-            if cx1 <= cx0 or cy1 <= cy0:
-                continue
-            # rendered region = core + overlap halo
-            rx0, ry0 = max(0, cx0 - OVERLAP_PX), max(0, cy0 - OVERLAP_PX)
-            rx1, ry1 = min(W, cx1 + OVERLAP_PX), min(H, cy1 + OVERLAP_PX)
+    # Stream entities straight to the DXF (R12) so we never hold all shapes
+    # or a full in-memory document: memory stays bounded to a single tile no
+    # matter how dense the drawing. Coordinates are converted to global mm
+    # inline (Y flipped to DXF's upward axis using the full page height).
+    mm_per_px = 25.4 / native_dpi
+    n_entities = 0
+    with r12writer(out_dxf_path) as dxf:
+        for r in range(rows):
+            for c in range(cols):
+                cx0, cy0 = c * tile_w, r * tile_h
+                cx1, cy1 = min(W, cx0 + tile_w), min(H, cy0 + tile_h)
+                if cx1 <= cx0 or cy1 <= cy0:
+                    continue
+                # rendered region = core + overlap halo
+                rx0, ry0 = max(0, cx0 - OVERLAP_PX), max(0, cy0 - OVERLAP_PX)
+                rx1, ry1 = min(W, cx1 + OVERLAP_PX), min(H, cy1 + OVERLAP_PX)
 
-            ink = _render_region_ink(page, zoom, rx0, ry0, rx1, ry1)
-            tshapes = extract.extract_shapes(ink, min_area_px=min_area_px)
-            tdec = fill.compute_fill_decisions(tshapes, ink,
-                                               hole_area_frac_max=hole_area_frac_max)
+                ink = _render_region_ink(page, zoom, rx0, ry0, rx1, ry1)
+                tshapes = extract.extract_shapes(ink, min_area_px=min_area_px)
 
-            for s in tshapes:
-                bx0, by0, bx1, by1 = s.bbox  # tile-local (rel. to rx0,ry0)
-                gcx = rx0 + (bx0 + bx1) / 2.0  # global centroid
-                gcy = ry0 + (by0 + by1) / 2.0
-                if not (cx0 <= gcx < cx1 and cy0 <= gcy < cy1):
-                    continue  # owned by a neighbouring tile's core
-                keep = tdec.get(id(s), False)
-                _offset_shape(s, rx0, ry0)
-                all_shapes.append(s)
-                decisions[id(s)] = keep
+                for s in tshapes:
+                    bx0, by0, bx1, by1 = s.bbox  # tile-local (rel. to rx0,ry0)
+                    gcx = rx0 + (bx0 + bx1) / 2.0  # global centroid
+                    gcy = ry0 + (by0 + by1) / 2.0
+                    if not (cx0 <= gcx < cx1 and cy0 <= gcy < cy1):
+                        continue  # owned by a neighbouring tile's core
+                    pts = np.array(s.contour, dtype=np.int32).reshape(-1, 1, 2)
+                    if len(pts) < 3:
+                        continue
+                    if simplify_px > 0:
+                        pts = cv2.approxPolyDP(pts, simplify_px, True)
+                    if len(pts) < 3:
+                        continue
+                    poly = [((px + rx0) * mm_per_px, (H - (py + ry0)) * mm_per_px)
+                            for px, py in pts[:, 0, :]]
+                    dxf.add_polyline_2d(poly, closed=True, layer=_layer_for(s))
+                    n_entities += 1
 
-            del ink, tshapes, tdec
-            gc.collect()
-            print(f"[tile {r},{c}] kept={len(all_shapes)} rss={_rss_mb()}MB", flush=True)
+                del ink, tshapes
+                gc.collect()
+                print(f"[tile {r},{c}] entities={n_entities} rss={_rss_mb()}MB", flush=True)
 
-    print(f"[export] shapes={len(all_shapes)} rss={_rss_mb()}MB", flush=True)
-    result = export.build_dxf(all_shapes, decisions, H, native_dpi,
-                              out_dxf_path, simplify_px=simplify_px, run_audit=False)
-    print(f"[export done] rss={_rss_mb()}MB", flush=True)
-    result["dpi"] = native_dpi
-    result["shape_count"] = len(all_shapes)
-    result["tiles"] = rows * cols
-    result["grid"] = f"{rows}x{cols}"
-    result["megapixels"] = round(mp, 1)
-    result["timing_s"] = {"total": round(time.time() - t0, 1)}
-    return result
+    print(f"[done] entities={n_entities} rss={_rss_mb()}MB", flush=True)
+    return {
+        "path": out_dxf_path, "shape_count": n_entities, "audit_errors": 0,
+        "counts": {}, "dpi": native_dpi, "tiles": rows * cols,
+        "grid": f"{rows}x{cols}", "megapixels": round(mp, 1),
+        "timing_s": {"total": round(time.time() - t0, 1)},
+    }
