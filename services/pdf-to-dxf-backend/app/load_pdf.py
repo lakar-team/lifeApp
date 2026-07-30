@@ -49,3 +49,37 @@ def load_pdf_ink(pdf_path: str, page_num: int = 0) -> tuple[np.ndarray, float]:
     ink = img_arr < 128
 
     return ink, native_dpi
+
+
+def probe_geometry(pdf_path: str, page_num: int = 0) -> dict:
+    """
+    Cheap size estimate WITHOUT rendering the page: detects native DPI from
+    embedded-image geometry and reports the full-page raster dimensions and a
+    rough peak-memory estimate. Used to decide tiling before a real convert.
+    """
+    doc = fitz.open(pdf_path)
+    page = doc[page_num]
+
+    rects = []
+    for img in page.get_images(full=True):
+        tile_px_w = img[2]  # (xref, smask, width, height, ...) -> width, no decode
+        for r in page.get_image_rects(img[0]):
+            if r.width > 0:
+                rects.append((tile_px_w / r.width) * 72)
+    native_dpi = float(np.median(rects)) if rects else 300.0
+
+    zoom = native_dpi / 72
+    w = int(round(page.rect.width * zoom))
+    h = int(round(page.rect.height * zoom))
+    mp = w * h / 1e6
+    # peak working set is dominated by full-page buffers: gray uint8 (1B/px)
+    # + bool ink (1B/px) + OpenCV CV_32S component labels (4B/px), plus churn.
+    est_peak_mb = round(mp * 6)
+    return {
+        "native_dpi": round(native_dpi, 1),
+        "width_px": w, "height_px": h,
+        "megapixels": round(mp, 1),
+        "est_peak_mb": est_peak_mb,
+        "pages": doc.page_count,
+        "free_tier_mb": 512,
+    }

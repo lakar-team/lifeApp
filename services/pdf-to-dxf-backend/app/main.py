@@ -27,6 +27,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from .pipeline import pdf_to_dxf
+from .load_pdf import probe_geometry
 
 app = FastAPI(title="PDF-to-DXF Contour Trace Service")
 
@@ -47,6 +48,16 @@ MAX_UPLOAD_MB = 50
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.post("/probe")
+async def probe(file: UploadFile = File(...)):
+    with tempfile.TemporaryDirectory() as tmp:
+        pdf_path = _save_upload(file, tmp)
+        try:
+            return probe_geometry(pdf_path)
+        except Exception as e:
+            raise HTTPException(500, f"probe failed: {e}")
 
 
 def _save_upload(file: UploadFile, dest_dir: str) -> str:
