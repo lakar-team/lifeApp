@@ -27,6 +27,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from .pipeline import pdf_to_dxf
+from .tile import pdf_to_dxf_auto
 from .load_pdf import probe_geometry
 
 app = FastAPI(title="PDF-to-DXF Contour Trace Service")
@@ -80,7 +81,7 @@ async def convert(file: UploadFile = File(...)):
         pdf_path = _save_upload(file, tmp)
         dxf_path = os.path.join(tmp, "output.dxf")
         try:
-            result = pdf_to_dxf(pdf_path, dxf_path)
+            result = pdf_to_dxf_auto(pdf_path, dxf_path)
         except Exception as e:
             raise HTTPException(500, f"Conversion failed: {e}")
 
@@ -101,7 +102,7 @@ async def convert_info(file: UploadFile = File(...)):
         pdf_path = _save_upload(file, tmp)
         dxf_path = os.path.join(tmp, "output.dxf")
         try:
-            result = pdf_to_dxf(pdf_path, dxf_path)
+            result = pdf_to_dxf_auto(pdf_path, dxf_path)
         except Exception as e:
             raise HTTPException(500, f"Conversion failed: {e}")
         return JSONResponse(result)
