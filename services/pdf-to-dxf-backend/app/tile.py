@@ -41,6 +41,10 @@ SAFE_SINGLE_PASS_MP = (0.65 * HOST_MEM_MB - PROCESS_BASE_MB) / BYTES_PER_PX  # ~
 OVERLAP_PX = 96            # halo so a seam-crossing shape is whole in one tile
 MIN_AREA_PX = 4            # drop ink specks smaller than this (scan noise)
 MIN_HOLE_PX = 8            # drop negligible holes (keep real counters/interiors)
+# Applied to the CAPTURED outline (never the raster): smooth de-jags, then
+# simplify reduces point count. Both conservative -- tune to taste.
+SMOOTH_SIGMA = 1.0         # light Gaussian de-jag along the contour (px); 0 = off
+SIMPLIFY_PX = 0.5          # Douglas-Peucker point reduction after smoothing (px); 0 = off
 
 
 def _rss_mb() -> int:
@@ -184,14 +188,37 @@ def _grid(W, H):
     return max(1, math.ceil(H / side)), max(1, math.ceil(W / side))
 
 
+def _smooth_ring(pts, sigma):
+    """Light circular Gaussian along a closed contour: averages out the
+    pixel-staircase jitter while keeping real corners (which span many
+    consistent pixels and survive), operating on the captured outline points."""
+    n = len(pts)
+    if sigma <= 0 or n < 6:
+        return pts
+    radius = max(1, int(round(sigma * 2)))
+    if n <= 2 * radius:
+        return pts
+    t = np.arange(-radius, radius + 1)
+    ker = np.exp(-0.5 * (t / sigma) ** 2)
+    ker /= ker.sum()
+    padded = np.concatenate([pts[-radius:], pts, pts[:radius]], axis=0)
+    xs = np.convolve(padded[:, 0], ker, mode="valid")
+    ys = np.convolve(padded[:, 1], ker, mode="valid")
+    return np.stack([xs, ys], axis=1)
+
+
 def _to_mm(cnt, rx0, ry0, H, mm):
-    """Map a captured contour -- the FULL traced outline, no simplification --
-    into global millimetres, Y-flipped. Any smoothing/simplification, if ever
-    added, must operate on this captured outline downstream, never by
-    re-deriving from the raster."""
-    if len(cnt) < 3:
+    """Process a captured contour into global mm: smooth (de-jag) THEN simplify
+    (reduce points) -- both on the CAPTURED OUTLINE, never the raster -- then
+    map to millimetres, Y-flipped."""
+    pts = cnt[:, 0, :].astype(np.float32)
+    if SMOOTH_SIGMA > 0:
+        pts = _smooth_ring(pts, SMOOTH_SIGMA).astype(np.float32)
+    if SIMPLIFY_PX > 0 and len(pts) >= 3:
+        pts = cv2.approxPolyDP(pts.reshape(-1, 1, 2), SIMPLIFY_PX, True)[:, 0, :]
+    if len(pts) < 3:
         return None
-    return [((int(px) + rx0) * mm, (H - (int(py) + ry0)) * mm) for px, py in cnt[:, 0, :]]
+    return [((float(px) + rx0) * mm, (H - (float(py) + ry0)) * mm) for px, py in pts]
 
 
 def _iter_polys(page, zoom, W, H, native_dpi):
@@ -215,7 +242,9 @@ def _iter_polys(page, zoom, W, H, native_dpi):
             u8 = (ink * np.uint8(255))
             # RETR_CCOMP: top-level contours are ink boundaries, their children
             # are holes (enclosed non-ink) -- exactly a polygon-with-holes.
-            contours, hierarchy = cv2.findContours(u8, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+            # CHAIN_APPROX_NONE = the full traced outline (every boundary pixel),
+            # so smoothing has the staircase to average; we simplify afterwards.
+            contours, hierarchy = cv2.findContours(u8, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
             if hierarchy is not None:
                 hier = hierarchy[0]
                 for i, cnt in enumerate(contours):
