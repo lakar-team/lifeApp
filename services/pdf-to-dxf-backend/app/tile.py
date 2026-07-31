@@ -41,7 +41,8 @@ SAFE_SINGLE_PASS_MP = (0.65 * HOST_MEM_MB - PROCESS_BASE_MB) / BYTES_PER_PX  # ~
 OVERLAP_PX = 96            # halo so a seam-crossing shape is whole in one tile
 MIN_AREA_PX = 4            # drop ink specks smaller than this
 MIN_HOLE_PX = 8            # drop negligible holes (keep real counters/interiors)
-SIMPLIFY_PX = 0.5          # Douglas-Peucker tolerance on contours
+SMOOTH_SIGMA = 1.2         # light Gaussian de-jag on contour points (px); 0 = off
+SIMPLIFY_PX = 0.6          # Douglas-Peucker tolerance after smoothing (px)
 
 
 def _rss_mb() -> int:
@@ -185,12 +186,34 @@ def _grid(W, H):
     return max(1, math.ceil(H / side)), max(1, math.ceil(W / side))
 
 
+def _smooth_ring(pts, sigma):
+    """Light circular Gaussian smoothing of a closed contour to knock off the
+    pixel-staircase jaggedness while preserving real corners and detail (real
+    corners span many consistent pixels and survive; 1px jitter averages out)."""
+    n = len(pts)
+    if sigma <= 0 or n < 6:
+        return pts
+    radius = max(1, int(round(sigma * 2)))
+    if n <= 2 * radius:
+        return pts
+    t = np.arange(-radius, radius + 1)
+    ker = np.exp(-0.5 * (t / sigma) ** 2)
+    ker /= ker.sum()
+    padded = np.concatenate([pts[-radius:], pts, pts[:radius]], axis=0)
+    xs = np.convolve(padded[:, 0], ker, mode="valid")
+    ys = np.convolve(padded[:, 1], ker, mode="valid")
+    return np.stack([xs, ys], axis=1)
+
+
 def _simplify_to_mm(cnt, rx0, ry0, H, mm):
+    pts = cnt[:, 0, :].astype(np.float32)
+    if SMOOTH_SIGMA > 0:
+        pts = _smooth_ring(pts, SMOOTH_SIGMA).astype(np.float32)
     if SIMPLIFY_PX > 0:
-        cnt = cv2.approxPolyDP(cnt, SIMPLIFY_PX, True)
-    if len(cnt) < 3:
+        pts = cv2.approxPolyDP(pts.reshape(-1, 1, 2), SIMPLIFY_PX, True)[:, 0, :]
+    if len(pts) < 3:
         return None
-    return [((px + rx0) * mm, (H - (py + ry0)) * mm) for px, py in cnt[:, 0, :]]
+    return [((float(px) + rx0) * mm, (H - (float(py) + ry0)) * mm) for px, py in pts]
 
 
 def _iter_polys(page, zoom, W, H, native_dpi):
@@ -214,7 +237,9 @@ def _iter_polys(page, zoom, W, H, native_dpi):
             u8 = (ink * np.uint8(255))
             # RETR_CCOMP: top-level contours are ink boundaries, their children
             # are holes (enclosed non-ink) -- exactly a polygon-with-holes.
-            contours, hierarchy = cv2.findContours(u8, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+            # CHAIN_APPROX_NONE keeps every boundary pixel so the smoother can
+            # average out the staircase (we simplify afterwards).
+            contours, hierarchy = cv2.findContours(u8, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
             if hierarchy is not None:
                 hier = hierarchy[0]
                 for i, cnt in enumerate(contours):
