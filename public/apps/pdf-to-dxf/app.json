@@ -3,7 +3,7 @@
   "slug": "pdf-to-dxf",
   "path": "/apps/pdf-to-dxf/",
   "icon": "ruler",
-  "description": "Trace scanned engineering & architectural PDFs into millimetre-scaled DXF drawings by true ink boundary — no centerline thinning, so fine detail and text stay readable.",
+  "description": "Convert scanned engineering & architectural drawings (PDF) into clean, editable vector files — DXF for CAD, or a crisp, scalable vector PDF.",
   "status": "live",
   "sort_order": 24,
   "tags": [

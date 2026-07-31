@@ -64,11 +64,10 @@ button.primary:hover:not(:disabled){background:var(--accent)}
 </head>
 <body>
 <main>
-  <h1>PDF &rarr; DXF Vectorizer <span>/ scanned engineering drawings</span></h1>
-  <div class="hint">Upload a scanned engineering or architectural drawing (PDF). The server traces
-  every line, arc, circle and filled region by its true ink boundary &mdash; no centerline
-  thinning, so fine detail and text stay readable &mdash; and returns a millimetre-scaled DXF
-  (AutoCAD 2007 / AC1021). A dense full-page drawing takes roughly <b>25&ndash;45&nbsp;seconds</b>.</div>
+  <h1>PDF &rarr; DXF Vectorizer <span>/ scanned drawings into editable vectors</span></h1>
+  <div class="hint">Upload a scanned drawing (PDF) and get back clean, editable vector geometry &mdash;
+  a <b>DXF</b> to open and edit in your CAD software, or a crisp <b>vector PDF</b> you can zoom,
+  print and share without any pixelation. Large drawings can take up to a minute.</div>
 
   <div class="card">
     <h2>Convert</h2>
@@ -79,20 +78,20 @@ button.primary:hover:not(:disabled){background:var(--accent)}
     <input type="file" id="fileInput" accept="application/pdf" hidden>
     <div class="fmt">
       <span class="fmt-label">Output</span>
-      <label><input type="radio" name="fmt" value="pdf" checked> Vector PDF <span class="fmt-sub">— filled, viewable</span></label>
-      <label><input type="radio" name="fmt" value="dxf"> DXF <span class="fmt-sub">— for CAD</span></label>
+      <label><input type="radio" name="fmt" value="pdf" checked> Vector PDF <span class="fmt-sub">— scalable, share-ready</span></label>
+      <label><input type="radio" name="fmt" value="dxf"> DXF <span class="fmt-sub">— edit in CAD</span></label>
     </div>
     <div class="row" style="margin-top:14px">
       <button class="primary" id="btnConvert" disabled>Convert</button>
       <p class="statusline" id="convStatus"></p>
     </div>
-    <div class="warm" id="warm"><span class="dot"></span><span id="warmText">waking the converter&hellip;</span></div>
+    <div class="warm" id="warm"><span class="dot"></span><span id="warmText">Connecting&hellip;</span></div>
   </div>
 
   <div class="card" id="result" style="display:none">
     <h2>Result</h2>
     <div class="metrics" id="metrics"></div>
-    <a class="dl" id="dxfLink" href="#" download>Download DXF</a>
+    <a class="dl" id="dxfLink" href="#" download>Download</a>
     <div class="hint" id="resultHint"></div>
   </div>
 </main>
@@ -101,19 +100,16 @@ button.primary:hover:not(:disabled){background:var(--accent)}
 "use strict";
 const $ = id => document.getElementById(id);
 
-/* Backend: the contour-trace service on Render. Synchronous API:
-   POST /convert (multipart "file") -> DXF file, with X-Shape-Count /
-   X-Audit-Errors response headers. */
+/* Conversion API endpoint. */
 const BACKEND = "https://pdf-to-dxf-2zcz.onrender.com";
 
-/* ---- pre-warm the free-tier instance (it sleeps after ~15 min idle) ---- */
+/* ---- warm up the service so the first conversion is quick ---- */
 let warm = false;
 (function prewarm(){
-  const t0 = Date.now();
   fetch(BACKEND + "/health", { cache: "no-store" })
     .then(r => r.ok ? r.json() : Promise.reject())
-    .then(() => { warm = true; setWarm(true, `converter ready (${((Date.now()-t0)/1000).toFixed(1)}s)`); })
-    .catch(() => setWarm(false, "converter unreachable — it may be starting; try converting anyway"));
+    .then(() => { warm = true; setWarm(true, "Ready"); })
+    .catch(() => setWarm(false, "Starting up…"));
 })();
 function setWarm(ready, msg){
   const w = $("warm"); w.classList.toggle("ready", ready);
@@ -132,7 +128,7 @@ $("drop").addEventListener("drop", e => {
 });
 function setFile(f){
   if (f && f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf")) {
-    setStatus("err", "please choose a PDF file"); return;
+    setStatus("err", "Please choose a PDF file."); return;
   }
   file = f || null;
   $("fileName").textContent = f ? `${f.name} (${(f.size/1048576).toFixed(1)} MB)` : "";
@@ -143,19 +139,17 @@ function setStatus(kind, msg){
   const el = $("convStatus"); el.className = "statusline" + (kind ? " " + kind : ""); el.textContent = msg;
 }
 
-/* ---- convert (single blocking request; no server-side progress stream) ---- */
+/* ---- convert ---- */
 $("btnConvert").addEventListener("click", async () => {
   if (!file) return;
   const fmt = document.querySelector('input[name="fmt"]:checked').value;
   $("btnConvert").disabled = true;
   $("result").style.display = "none";
 
-  // rotating reassurance while the one request is in flight
   const t0 = Date.now();
-  const base = warm
-    ? ["tracing contours…", "extracting shapes…", "writing output…"]
-    : ["waking the converter (cold start, up to a minute)…", "tracing contours…", "extracting shapes…", "writing output…"];
-  const msgs = fmt === "pdf" ? base.concat(["rendering vector PDF…"]) : base;
+  const msgs = warm
+    ? ["Processing your drawing…", "Working on it…", "Almost there…"]
+    : ["Starting up…", "Processing your drawing…", "Working on it…", "Almost there…"];
   let mi = 0;
   setStatus("", `⟳ ${msgs[0]}`);
   const spin = setInterval(() => {
@@ -171,19 +165,20 @@ $("btnConvert").addEventListener("click", async () => {
     fd.append("file", file);
     const r = await fetch(BACKEND + "/convert?format=" + fmt, { method:"POST", body:fd, signal:ctrl.signal });
     if (!r.ok) {
-      let detail = `conversion failed (HTTP ${r.status})`;
-      try { const t = await r.text(); if (t) detail = t; } catch(e){}
+      let detail = "Couldn't convert this file. Please try again.";
+      if (r.status === 400 || r.status === 413 || r.status === 415) {
+        try { const t = await r.text(); if (t) detail = t; } catch(e){}
+      }
       throw new Error(detail);
     }
     const blob = await r.blob();
-    const shapes = r.headers.get("X-Shape-Count");
-    const audit  = r.headers.get("X-Audit-Errors");
-    showResult(blob, shapes, audit, (Date.now()-t0)/1000, fmt);
-    setStatus("ok", `done in ${((Date.now()-t0)/1000).toFixed(1)}s`);
-    warm = true; setWarm(true, "converter ready");
+    const elements = r.headers.get("X-Shape-Count");
+    showResult(blob, elements, (Date.now()-t0)/1000, fmt);
+    setStatus("ok", `Done in ${((Date.now()-t0)/1000).toFixed(1)}s`);
+    warm = true; setWarm(true, "Ready");
   } catch (e) {
     setStatus("err", e.name === "AbortError"
-      ? "timed out after 5 min — the drawing may be too large, or the backend is still waking; try again."
+      ? "This is taking longer than expected — the drawing may be very large. Please try again."
       : String(e.message || e));
   } finally {
     clearInterval(spin); clearTimeout(timeout);
@@ -191,7 +186,7 @@ $("btnConvert").addEventListener("click", async () => {
   }
 });
 
-function showResult(blob, shapes, audit, secs, fmt){
+function showResult(blob, elements, secs, fmt){
   const url = URL.createObjectURL(blob);
   const ext = fmt === "pdf" ? ".pdf" : ".dxf";
   const outName = (file.name || "drawing.pdf").replace(/\.[^.]+$/, "") + ext;
@@ -200,18 +195,15 @@ function showResult(blob, shapes, audit, secs, fmt){
   link.textContent = fmt === "pdf" ? "Download vector PDF" : "Download DXF";
 
   const items = [];
-  if (shapes != null) items.push([Number(shapes).toLocaleString(), "shapes traced"]);
-  if (audit != null)  items.push([Number(audit).toLocaleString(), "audit errors"]);
+  if (elements != null) items.push([Number(elements).toLocaleString(), "vector elements"]);
   items.push([(blob.size/1024).toFixed(0) + " KB", "file size"]);
   items.push([secs.toFixed(1) + "s", "time"]);
   $("metrics").innerHTML = items.map(([v,k]) =>
     `<div class="metric"><div class="v">${v}</div><div class="k">${k}</div></div>`).join("");
 
-  $("resultHint").innerHTML = (Number(audit) > 0)
-    ? `<b style="color:var(--warn)">${audit} audit warning(s)</b> — the file opens fine, but a few entities were flagged during validation. Check them in CAD.`
-    : "Saved as <code>" + outName + "</code>. " + (fmt === "pdf"
-        ? "Vector PDF — every line/arc is a real vector path, not a raster."
-        : "DXF units are millimetres (scaled from the scan's native DPI).");
+  $("resultHint").innerHTML = "Saved as <code>" + outName + "</code>. " + (fmt === "pdf"
+    ? "A crisp, scalable vector version of your drawing."
+    : "Ready to open and edit in your CAD software.");
   $("result").style.display = "";
   $("result").scrollIntoView({ behavior:"smooth", block:"nearest" });
 }

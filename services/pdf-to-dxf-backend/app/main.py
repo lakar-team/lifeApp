@@ -123,8 +123,8 @@ def convert(file: UploadFile = File(...), format: str = "dxf"):
             if proc.returncode != 0 or not os.path.exists(out_path):
                 shutil.rmtree(work, ignore_errors=True)
                 raise HTTPException(
-                    500, f"Conversion failed (worker exit {proc.returncode}); "
-                         "the drawing may be too large for the free tier.")
+                    500, "Conversion failed — the drawing may be too large or "
+                         "complex to process. Please try a smaller file.")
 
             result = {}
             res_path = out_path + ".result.json"
