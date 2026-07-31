@@ -41,10 +41,11 @@ SAFE_SINGLE_PASS_MP = (0.65 * HOST_MEM_MB - PROCESS_BASE_MB) / BYTES_PER_PX  # ~
 OVERLAP_PX = 96            # halo so a seam-crossing shape is whole in one tile
 MIN_AREA_PX = 4            # drop ink specks smaller than this (scan noise)
 MIN_HOLE_PX = 8            # drop negligible holes (keep real counters/interiors)
-# Applied to the CAPTURED outline (never the raster): smooth de-jags, then
-# simplify reduces point count. Both conservative -- tune to taste.
-SMOOTH_SIGMA = 1.0         # light Gaussian de-jag along the contour (px); 0 = off
-SIMPLIFY_PX = 0.5          # Douglas-Peucker point reduction after smoothing (px); 0 = off
+# Douglas-Peucker point reduction on the CAPTURED outline (never the raster).
+# De-jags + shrinks the file without moving edges. No smoothing on purpose --
+# Gaussian smoothing averages a stroke's two edges together and eats fine
+# detail on very thin lines.
+SIMPLIFY_PX = 1.0          # de-jag + point-reduction tolerance (px)
 
 
 def _rss_mb() -> int:
@@ -188,40 +189,17 @@ def _grid(W, H):
     return max(1, math.ceil(H / side)), max(1, math.ceil(W / side))
 
 
-def _smooth_ring(pts, sigma):
-    """Light circular Gaussian along a closed contour: averages out the
-    pixel-staircase jitter while keeping real corners (which span many
-    consistent pixels and survive), operating on the captured outline points."""
-    n = len(pts)
-    if sigma <= 0 or n < 6:
-        return pts
-    radius = max(1, int(round(sigma * 2)))
-    if n <= 2 * radius:
-        return pts
-    t = np.arange(-radius, radius + 1)
-    ker = np.exp(-0.5 * (t / sigma) ** 2)
-    ker /= ker.sum()
-    padded = np.concatenate([pts[-radius:], pts, pts[:radius]], axis=0)
-    xs = np.convolve(padded[:, 0], ker, mode="valid")
-    ys = np.convolve(padded[:, 1], ker, mode="valid")
-    return np.stack([xs, ys], axis=1)
-
-
-def _to_mm(cnt, rx0, ry0, H, mm, sigma, simplify):
-    """Process a captured contour into global mm: smooth (de-jag) THEN simplify
-    (reduce points) -- both on the CAPTURED OUTLINE, never the raster -- then
-    map to millimetres, Y-flipped."""
-    pts = cnt[:, 0, :].astype(np.float32)
-    if sigma > 0:
-        pts = _smooth_ring(pts, sigma).astype(np.float32)
-    if simplify > 0 and len(pts) >= 3:
-        pts = cv2.approxPolyDP(pts.reshape(-1, 1, 2), simplify, True)[:, 0, :]
-    if len(pts) < 3:
+def _to_mm(cnt, rx0, ry0, H, mm):
+    """Reduce the captured outline (Douglas-Peucker, on the outline -- never the
+    raster) and map to global millimetres, Y-flipped."""
+    if SIMPLIFY_PX > 0:
+        cnt = cv2.approxPolyDP(cnt, SIMPLIFY_PX, True)
+    if len(cnt) < 3:
         return None
-    return [((float(px) + rx0) * mm, (H - (float(py) + ry0)) * mm) for px, py in pts]
+    return [((int(px) + rx0) * mm, (H - (int(py) + ry0)) * mm) for px, py in cnt[:, 0, :]]
 
 
-def _iter_polys(page, zoom, W, H, native_dpi, sigma, simplify):
+def _iter_polys(page, zoom, W, H, native_dpi):
     """Yield (outer_mm, [holes_mm]) per ink region in global millimetres.
     Tiles internally; de-dups seam-crossing regions by centroid ownership."""
     mm = 25.4 / native_dpi
@@ -242,9 +220,9 @@ def _iter_polys(page, zoom, W, H, native_dpi, sigma, simplify):
             u8 = (ink * np.uint8(255))
             # RETR_CCOMP: top-level contours are ink boundaries, their children
             # are holes (enclosed non-ink) -- exactly a polygon-with-holes.
-            # CHAIN_APPROX_NONE = the full traced outline (every boundary pixel),
-            # so smoothing has the staircase to average; we simplify afterwards.
-            contours, hierarchy = cv2.findContours(u8, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
+            # CHAIN_APPROX_SIMPLE captures the full outline faithfully (it only
+            # drops redundant collinear points); simplification happens after.
+            contours, hierarchy = cv2.findContours(u8, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
             if hierarchy is not None:
                 hier = hierarchy[0]
                 for i, cnt in enumerate(contours):
@@ -256,14 +234,14 @@ def _iter_polys(page, zoom, W, H, native_dpi, sigma, simplify):
                     gcx, gcy = rx0 + x + bw / 2.0, ry0 + y + bh / 2.0
                     if not (cx0 <= gcx < cx1 and cy0 <= gcy < cy1):
                         continue  # owned by a neighbouring tile's core
-                    outer = _to_mm(cnt, rx0, ry0, H, mm, sigma, simplify)
+                    outer = _to_mm(cnt, rx0, ry0, H, mm)
                     if outer is None:
                         continue
                     holes = []
                     ch = hier[i][2]  # first child (hole)
                     while ch != -1:
                         if cv2.contourArea(contours[ch]) >= MIN_HOLE_PX:
-                            hp = _to_mm(contours[ch], rx0, ry0, H, mm, sigma, simplify)
+                            hp = _to_mm(contours[ch], rx0, ry0, H, mm)
                             if hp is not None:
                                 holes.append(hp)
                         ch = hier[ch][0]  # next sibling
@@ -274,14 +252,10 @@ def _iter_polys(page, zoom, W, H, native_dpi, sigma, simplify):
             print(f"[trace] tile {r},{c} rss={_rss_mb()}MB", flush=True)
 
 
-def pdf_to_dxf_auto(pdf_path, out_path, fmt="dxf", page_num=0,
-                    smooth=None, simplify=None, **_):
+def pdf_to_dxf_auto(pdf_path, out_path, fmt="dxf", page_num=0, **_):
     """Convert a PDF page to `out_path` in `fmt` ('pdf' or 'dxf'). Both formats
-    are serialised from the SAME streamed filled-shape result. `smooth`/`simplify`
-    (px) override the module defaults for the outline de-jag / point reduction."""
+    are serialised from the SAME streamed filled-shape result."""
     t0 = time.time()
-    sigma = SMOOTH_SIGMA if smooth is None else float(smooth)
-    simp = SIMPLIFY_PX if simplify is None else float(simplify)
     doc = fitz.open(pdf_path)
     page = doc[page_num]
     native_dpi = _detect_native_dpi(doc, page)
@@ -296,11 +270,11 @@ def pdf_to_dxf_auto(pdf_path, out_path, fmt="dxf", page_num=0,
 
     n = 0
     with sink:
-        for outer, holes in _iter_polys(page, zoom, W, H, native_dpi, sigma, simp):
+        for outer, holes in _iter_polys(page, zoom, W, H, native_dpi):
             sink.add_filled(outer, holes)
             n += 1
 
-    print(f"[done] shapes={n} fmt={fmt} smooth={sigma} simplify={simp} rss={_rss_mb()}MB", flush=True)
+    print(f"[done] shapes={n} fmt={fmt} rss={_rss_mb()}MB", flush=True)
     return {"shape_count": n, "audit_errors": 0, "dpi": native_dpi,
             "megapixels": round(W * H / 1e6, 1),
             "timing_s": {"total": round(time.time() - t0, 1)}}

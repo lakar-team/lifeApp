@@ -95,8 +95,7 @@ async def probe(file: UploadFile = File(...)):
 
 
 @app.post("/convert")
-def convert(file: UploadFile = File(...), format: str = "dxf",
-            smooth: float | None = None, simplify: float | None = None):
+def convert(file: UploadFile = File(...), format: str = "dxf"):
     fmt = format.lower()
     if fmt not in ("dxf", "pdf"):
         raise HTTPException(400, "format must be 'dxf' or 'pdf'")
@@ -112,9 +111,7 @@ def convert(file: UploadFile = File(...), format: str = "dxf",
             print(f"[convert] start fmt={fmt} parent_rss={_rss_mb()}MB", flush=True)
             try:
                 proc = subprocess.run(
-                    [sys.executable, "-m", "app.convert_cli", pdf_path, out_path, fmt,
-                     "" if smooth is None else str(smooth),
-                     "" if simplify is None else str(simplify)],
+                    [sys.executable, "-m", "app.convert_cli", pdf_path, out_path, fmt],
                     timeout=CONVERT_TIMEOUT_S,
                 )
             except subprocess.TimeoutExpired:
