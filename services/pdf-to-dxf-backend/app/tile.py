@@ -39,9 +39,8 @@ TARGET_TILE_MB = 170.0
 TARGET_TILE_MP = TARGET_TILE_MB / BYTES_PER_PX
 SAFE_SINGLE_PASS_MP = (0.65 * HOST_MEM_MB - PROCESS_BASE_MB) / BYTES_PER_PX  # ~31 MP
 OVERLAP_PX = 96            # halo so a seam-crossing shape is whole in one tile
-MIN_AREA_PX = 4            # drop ink specks smaller than this
+MIN_AREA_PX = 4            # drop ink specks smaller than this (scan noise)
 MIN_HOLE_PX = 8            # drop negligible holes (keep real counters/interiors)
-SIMPLIFY_PX = 0.5          # Douglas-Peucker tolerance on contours
 
 
 def _rss_mb() -> int:
@@ -185,12 +184,14 @@ def _grid(W, H):
     return max(1, math.ceil(H / side)), max(1, math.ceil(W / side))
 
 
-def _simplify_to_mm(cnt, rx0, ry0, H, mm):
-    if SIMPLIFY_PX > 0:
-        cnt = cv2.approxPolyDP(cnt, SIMPLIFY_PX, True)
+def _to_mm(cnt, rx0, ry0, H, mm):
+    """Map a captured contour -- the FULL traced outline, no simplification --
+    into global millimetres, Y-flipped. Any smoothing/simplification, if ever
+    added, must operate on this captured outline downstream, never by
+    re-deriving from the raster."""
     if len(cnt) < 3:
         return None
-    return [((px + rx0) * mm, (H - (py + ry0)) * mm) for px, py in cnt[:, 0, :]]
+    return [((int(px) + rx0) * mm, (H - (int(py) + ry0)) * mm) for px, py in cnt[:, 0, :]]
 
 
 def _iter_polys(page, zoom, W, H, native_dpi):
@@ -226,14 +227,14 @@ def _iter_polys(page, zoom, W, H, native_dpi):
                     gcx, gcy = rx0 + x + bw / 2.0, ry0 + y + bh / 2.0
                     if not (cx0 <= gcx < cx1 and cy0 <= gcy < cy1):
                         continue  # owned by a neighbouring tile's core
-                    outer = _simplify_to_mm(cnt, rx0, ry0, H, mm)
+                    outer = _to_mm(cnt, rx0, ry0, H, mm)
                     if outer is None:
                         continue
                     holes = []
                     ch = hier[i][2]  # first child (hole)
                     while ch != -1:
                         if cv2.contourArea(contours[ch]) >= MIN_HOLE_PX:
-                            hp = _simplify_to_mm(contours[ch], rx0, ry0, H, mm)
+                            hp = _to_mm(contours[ch], rx0, ry0, H, mm)
                             if hp is not None:
                                 holes.append(hp)
                         ch = hier[ch][0]  # next sibling
