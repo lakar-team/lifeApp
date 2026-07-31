@@ -27,8 +27,8 @@ import time
 import numpy as np
 import cv2
 import fitz  # PyMuPDF
-from ezdxf.addons import r12writer
-import mapbox_earcut as earcut
+import ezdxf
+from ezdxf import const as ezconst
 
 # --- memory budgeting: the grid auto-sizes from the ACTUAL page, aiming for
 # comfortable headroom (each tile ~a third of the cap), not the ragged edge. ---
@@ -136,48 +136,43 @@ class PdfSink:
 
 
 class DxfSink:
-    """Streaming R12 DXF. Each ink region emits closed boundary POLYLINEs
-    (layer INK-OUTLINE, snappable in CAD) plus a triangulated solid fill (layer
-    INK-FILL) -- true solid fill without an in-memory HATCH document."""
+    """DXF with native solid HATCH fills -- one editable hatch per ink region
+    (inner holes kept open via island detection) plus snappable boundary
+    polylines. Builds an in-memory ezdxf document rather than streaming: the
+    accepted tradeoff for real hatches. The raster is still tiled, so only the
+    vector document grows with shape count, not the whole-page bitmap."""
 
     def __init__(self, out_path):
         self.out_path = out_path
-        self._cm = None
-        self._dxf = None
 
     def __enter__(self):
-        self._cm = r12writer(self.out_path)
-        self._dxf = self._cm.__enter__()
+        self.doc = ezdxf.new("R2010")
+        self.doc.header["$INSUNITS"] = 4  # millimetres
+        for name in ("INK-OUTLINE", "INK-FILL"):
+            if name not in self.doc.layers:
+                self.doc.layers.add(name, color=7)
+        self.msp = self.doc.modelspace()
         return self
 
     def add_filled(self, outer, holes):
-        self._dxf.add_polyline_2d(outer, closed=True, layer="INK-OUTLINE")
+        # snappable boundary geometry
+        self.msp.add_lwpolyline(outer, close=True,
+                                dxfattribs={"layer": "INK-OUTLINE", "lineweight": 0})
         for h in holes:
-            self._dxf.add_polyline_2d(h, closed=True, layer="INK-OUTLINE")
-        for tri in _triangulate(outer, holes):
-            self._dxf.add_solid(tri, layer="INK-FILL")
+            self.msp.add_lwpolyline(h, close=True,
+                                    dxfattribs={"layer": "INK-OUTLINE", "lineweight": 0})
+        # native solid hatch; outer boundary + holes -> island detection cuts holes
+        hatch = self.msp.add_hatch(color=7, dxfattribs={"layer": "INK-FILL"})
+        hatch.dxf.hatch_style = 0  # odd-even island detection
+        hatch.paths.add_polyline_path(outer, is_closed=True,
+                                      flags=ezconst.BOUNDARY_PATH_EXTERNAL)
+        for h in holes:
+            hatch.paths.add_polyline_path(h, is_closed=True,
+                                          flags=ezconst.BOUNDARY_PATH_DEFAULT)
 
     def __exit__(self, *exc):
-        return self._cm.__exit__(*exc)
-
-
-def _triangulate(outer, holes):
-    """Triangulate a polygon-with-holes into a list of (p1,p2,p3) mm triangles
-    for solid fill. Uses mapbox-earcut (robust, fast)."""
-    verts = list(outer)
-    rings = [len(verts)]
-    for h in holes:
-        verts.extend(h)
-        rings.append(len(verts))
-    if len(verts) < 3:
-        return []
-    arr = np.array(verts, dtype=np.float32)
-    try:
-        idx = earcut.triangulate_float32(arr, np.array(rings, dtype=np.uint32))
-    except Exception:
-        return []
-    return [(tuple(arr[idx[i]]), tuple(arr[idx[i + 1]]), tuple(arr[idx[i + 2]]))
-            for i in range(0, len(idx) - 2, 3)]
+        self.doc.saveas(self.out_path)
+        return False
 
 
 # ------------------------------ producer ------------------------------------
