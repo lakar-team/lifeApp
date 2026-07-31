@@ -207,21 +207,21 @@ def _smooth_ring(pts, sigma):
     return np.stack([xs, ys], axis=1)
 
 
-def _to_mm(cnt, rx0, ry0, H, mm):
+def _to_mm(cnt, rx0, ry0, H, mm, sigma, simplify):
     """Process a captured contour into global mm: smooth (de-jag) THEN simplify
     (reduce points) -- both on the CAPTURED OUTLINE, never the raster -- then
     map to millimetres, Y-flipped."""
     pts = cnt[:, 0, :].astype(np.float32)
-    if SMOOTH_SIGMA > 0:
-        pts = _smooth_ring(pts, SMOOTH_SIGMA).astype(np.float32)
-    if SIMPLIFY_PX > 0 and len(pts) >= 3:
-        pts = cv2.approxPolyDP(pts.reshape(-1, 1, 2), SIMPLIFY_PX, True)[:, 0, :]
+    if sigma > 0:
+        pts = _smooth_ring(pts, sigma).astype(np.float32)
+    if simplify > 0 and len(pts) >= 3:
+        pts = cv2.approxPolyDP(pts.reshape(-1, 1, 2), simplify, True)[:, 0, :]
     if len(pts) < 3:
         return None
     return [((float(px) + rx0) * mm, (H - (float(py) + ry0)) * mm) for px, py in pts]
 
 
-def _iter_polys(page, zoom, W, H, native_dpi):
+def _iter_polys(page, zoom, W, H, native_dpi, sigma, simplify):
     """Yield (outer_mm, [holes_mm]) per ink region in global millimetres.
     Tiles internally; de-dups seam-crossing regions by centroid ownership."""
     mm = 25.4 / native_dpi
@@ -256,14 +256,14 @@ def _iter_polys(page, zoom, W, H, native_dpi):
                     gcx, gcy = rx0 + x + bw / 2.0, ry0 + y + bh / 2.0
                     if not (cx0 <= gcx < cx1 and cy0 <= gcy < cy1):
                         continue  # owned by a neighbouring tile's core
-                    outer = _to_mm(cnt, rx0, ry0, H, mm)
+                    outer = _to_mm(cnt, rx0, ry0, H, mm, sigma, simplify)
                     if outer is None:
                         continue
                     holes = []
                     ch = hier[i][2]  # first child (hole)
                     while ch != -1:
                         if cv2.contourArea(contours[ch]) >= MIN_HOLE_PX:
-                            hp = _to_mm(contours[ch], rx0, ry0, H, mm)
+                            hp = _to_mm(contours[ch], rx0, ry0, H, mm, sigma, simplify)
                             if hp is not None:
                                 holes.append(hp)
                         ch = hier[ch][0]  # next sibling
@@ -274,10 +274,14 @@ def _iter_polys(page, zoom, W, H, native_dpi):
             print(f"[trace] tile {r},{c} rss={_rss_mb()}MB", flush=True)
 
 
-def pdf_to_dxf_auto(pdf_path, out_path, fmt="dxf", page_num=0, **_):
+def pdf_to_dxf_auto(pdf_path, out_path, fmt="dxf", page_num=0,
+                    smooth=None, simplify=None, **_):
     """Convert a PDF page to `out_path` in `fmt` ('pdf' or 'dxf'). Both formats
-    are serialised from the SAME streamed filled-shape result."""
+    are serialised from the SAME streamed filled-shape result. `smooth`/`simplify`
+    (px) override the module defaults for the outline de-jag / point reduction."""
     t0 = time.time()
+    sigma = SMOOTH_SIGMA if smooth is None else float(smooth)
+    simp = SIMPLIFY_PX if simplify is None else float(simplify)
     doc = fitz.open(pdf_path)
     page = doc[page_num]
     native_dpi = _detect_native_dpi(doc, page)
@@ -292,11 +296,11 @@ def pdf_to_dxf_auto(pdf_path, out_path, fmt="dxf", page_num=0, **_):
 
     n = 0
     with sink:
-        for outer, holes in _iter_polys(page, zoom, W, H, native_dpi):
+        for outer, holes in _iter_polys(page, zoom, W, H, native_dpi, sigma, simp):
             sink.add_filled(outer, holes)
             n += 1
 
-    print(f"[done] shapes={n} fmt={fmt} rss={_rss_mb()}MB", flush=True)
+    print(f"[done] shapes={n} fmt={fmt} smooth={sigma} simplify={simp} rss={_rss_mb()}MB", flush=True)
     return {"shape_count": n, "audit_errors": 0, "dpi": native_dpi,
             "megapixels": round(W * H / 1e6, 1),
             "timing_s": {"total": round(time.time() - t0, 1)}}

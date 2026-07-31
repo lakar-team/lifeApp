@@ -17,11 +17,17 @@ from .tile import pdf_to_dxf_auto
 
 
 def main() -> None:
-    if len(sys.argv) != 4:
-        print("usage: python -m app.convert_cli <pdf> <out> <dxf|pdf>", file=sys.stderr)
+    if len(sys.argv) < 4:
+        print("usage: python -m app.convert_cli <pdf> <out> <dxf|pdf> [smooth] [simplify]",
+              file=sys.stderr)
         sys.exit(2)
     pdf_path, out_path, fmt = sys.argv[1], sys.argv[2], sys.argv[3]
-    result = pdf_to_dxf_auto(pdf_path, out_path, fmt=fmt)
+    kw = {}
+    if len(sys.argv) >= 5 and sys.argv[4] != "":
+        kw["smooth"] = float(sys.argv[4])
+    if len(sys.argv) >= 6 and sys.argv[5] != "":
+        kw["simplify"] = float(sys.argv[5])
+    result = pdf_to_dxf_auto(pdf_path, out_path, fmt=fmt, **kw)
     with open(out_path + ".result.json", "w") as f:
         json.dump({"shape_count": result.get("shape_count", 0),
                    "audit_errors": result.get("audit_errors", 0)}, f)
