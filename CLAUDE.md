@@ -3,7 +3,7 @@
 The code repo behind **ADAMTOOL**, a curated public directory of small
 precision/AI web tools. (Folder + GitHub repo are still named `lifeApp` for
 historical reasons; the brand is ADAMTOOL.) Static frontend + Cloudflare
-Pages Functions backend + Supabase. Live at **adamtool.online** /
+Pages Functions backend + Supabase. Live at
 **adamtool.pages.dev**. Repo: `github.com/lakar-team/lifeApp`.
 
 For the full architecture, deployment shape, and history, see [[adamtool]] in
@@ -49,7 +49,7 @@ the right call.
 
 <!-- wiki-chain
 id: lifeapp-claude
-status: ADAMTOOL tools directory (Cloudflare Pages + Supabase), live at adamtool.online; 10 tools under public/apps/ incl. pdf-to-dxf (contour PDF->DXF/vector-PDF; backend in services/pdf-to-dxf-backend on Render free tier, made to fit 512MB via tiling + subprocess isolation, live 2026-07-31).
+status: ADAMTOOL tools directory (Cloudflare Pages + Supabase), live at adamtool.pages.dev; 10 tools under public/apps/ incl. pdf-to-dxf (contour PDF->DXF/vector-PDF; backend in services/pdf-to-dxf-backend on Render free tier, made to fit 512MB via tiling + subprocess isolation, live 2026-07-31).
 updated: 2026-07-31
 links: [adamtool, pdf-to-dxf, ai-platforms-claude]
 -->

@@ -35,12 +35,12 @@ from starlette.background import BackgroundTask
 
 app = FastAPI(title="PDF-to-DXF Contour Trace Service")
 
-# Restricted to the ADAMTOOL frontend origins (custom domain + any Cloudflare
+# Restricted to the ADAMTOOL frontend origins (adamtool.pages.dev + any Cloudflare
 # Pages preview subdomain) plus localhost for dev. expose_headers lets the
 # browser read the conversion stats returned on /convert.
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https://([a-z0-9-]+\.)*adamtool\.(online|pages\.dev)|http://localhost(:\d+)?",
+    allow_origin_regex=r"https://([a-z0-9-]+\.)*adamtool\.pages\.dev|http://localhost(:\d+)?",
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["X-Shape-Count", "X-Audit-Errors"],
