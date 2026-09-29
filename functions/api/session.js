@@ -3,6 +3,8 @@
 // Sets a secure, HttpOnly cookie storing the access token
 // This cookie is what our middleware reads to authenticate requests
 
+import { CLEAR_SESSION_COOKIE } from '../_lib/auth.js';
+
 export async function onRequestPost(context) {
     const { request } = context;
 
@@ -44,19 +46,10 @@ export async function onRequestPost(context) {
 
 // DELETE: logout
 export async function onRequestDelete(context) {
-    const clearedCookie = [
-        'adam_session=',
-        'Path=/',
-        'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
-        'HttpOnly',
-        'Secure',
-        'SameSite=Lax'
-    ].join('; ');
-
     return new Response(JSON.stringify({ success: true }), {
         headers: {
             'Content-Type': 'application/json',
-            'Set-Cookie': clearedCookie
+            'Set-Cookie': CLEAR_SESSION_COOKIE
         }
     });
 }

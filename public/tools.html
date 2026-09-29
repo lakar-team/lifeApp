@@ -374,7 +374,7 @@
             fetch('/api/track', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ appId: app.id, action: 'share', userId: currentUser?.id })
+                body: JSON.stringify({ appId: app.id, action: 'share' })
             }).catch(() => {});
         }
 
@@ -440,9 +440,7 @@
                 loading.style.display = 'none';
                 lucide.createIcons();
             };
-
-            // Log usage
-            logUsage(app.id);
+            // Launch is logged server-side by the /apps/* middleware when the page loads.
         }
 
         function closeLauncher() {
@@ -459,15 +457,6 @@
         document.addEventListener('keydown', e => {
             if (e.key === 'Escape') closeLauncher();
         });
-
-        async function logUsage(appId) {
-            if (!appId) return;
-            await fetch('/api/track', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ appId, action: 'launch', userId: currentUser?.id })
-            }).catch(() => {});
-        }
 
         // ---- User Menu ----
         const menuBtn = document.getElementById('user-menu-btn');

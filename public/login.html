@@ -121,7 +121,17 @@
             lucide.createIcons();
 
             let supabaseClient = null;
-            const redirectTo = new URLSearchParams(window.location.search).get('redirect') || '/tools';
+            const redirectTo = safeRedirect(new URLSearchParams(window.location.search).get('redirect'));
+
+            // Only allow same-origin destinations — blocks javascript: URLs
+            // and off-site redirects like //evil.com or https://evil.com.
+            function safeRedirect(target) {
+                try {
+                    const u = new URL(target || '/tools', window.location.origin);
+                    if (u.origin === window.location.origin) return u.pathname + u.search + u.hash;
+                } catch (e) {}
+                return '/tools';
+            }
 
             // Auto-redirect if already logged in
             async function checkExistingSession() {

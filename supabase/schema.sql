@@ -48,7 +48,7 @@ create table if not exists usage_logs (
   user_id     uuid references auth.users(id) on delete set null,
   app_id      uuid references apps(id) on delete set null,
   action      text not null
-                check (action in ('launch', 'heartbeat', 'close')),
+                check (action in ('launch', 'heartbeat', 'close', 'share')),
   session_id  text,                           -- groups actions per visit
   ip          text,
   created_at  timestamptz default now()
