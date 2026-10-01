@@ -1,0 +1,10 @@
+{
+  "name": "Wordhue Translator",
+  "slug": "wordhue",
+  "path": "/apps/wordhue/",
+  "icon": "languages",
+  "description": "Color-coded Japanese → English. Every word is colored by grammar role and linked across furigana, romaji, a word-for-word gloss and the rearranged English — hover to see how the sentence moves.",
+  "status": "live",
+  "sort_order": 12,
+  "tags": ["japanese", "language", "learning", "translation", "grammar", "furigana", "romaji"]
+}
