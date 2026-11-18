@@ -25,20 +25,51 @@ for sid,lang,t in c.execute("select sid,lang,text from SenseGloss where lang='en
 poss = collections.defaultdict(list)
 for sid,t in c.execute("select sid,text from pos"): poss[sid].append(t)
 
-W = {}      # word -> [score, gloss, reading, pos]
+fields = collections.defaultdict(list)
+for sid,t in c.execute("select sid,text from field"): fields[sid].append(t)
+FIELD_SHORT={'computing':'comp','food, cooking':'food','mathematics':'math','medicine':'med','linguistics':'ling','music':'music','sumo':'sumo','physics':'phys','sports':'sport','astronomy':'astro','baseball':'baseball','chemistry':'chem','law':'law','biology':'bio','Buddhism':'bud','finance':'fin','military':'mil','economics':'econ','anatomy':'anat'}
+def pcode(t):
+    t=t.lower()
+    if 'suru verb' in t or 'takes the aux. verb suru' in t: return 'vs'
+    if 'ichidan' in t: return 'v1'
+    if 'godan' in t: return 'v5'
+    if 'intransitive' in t: return 'vi'
+    if 'transitive' in t: return 'vt'
+    if 'adjectival nouns' in t: return 'adj-na'
+    if 'adjective (keiyoushi)' in t: return 'adj-i'
+    if "'taru' adjective" in t: return 'adj-t'
+    if 'pre-noun' in t: return 'adj-pn'
+    if 'adverb' in t: return 'adv'
+    if t.startswith('particle'): return 'prt'
+    if 'conjunction' in t: return 'conj'
+    if 'interjection' in t: return 'int'
+    if 'pronoun' in t: return 'pn'
+    if 'counter' in t: return 'ctr'
+    if 'suffix' in t: return 'suf'
+    if 'prefix' in t: return 'pref'
+    if 'expressions' in t: return 'exp'
+    if 'auxiliary' in t: return 'aux'
+    if 'numeric' in t: return 'num'
+    if t.startswith('noun'): return 'n'
+    return ''
+def entry_senses(sids, rd=''):
+    out=[]; cur=[]
+    for sid in sids:
+        codes=[pcode(t) for t in poss[sid]]; codes=[x for x in codes if x]
+        if codes: cur=list(dict.fromkeys(codes))
+        gs=[g for g in glosses[sid] if g][:2]
+        if gs: out.append(("; ".join(gs), cur[:], next((FIELD_SHORT.get(f,'') for f in fields[sid]),''), rd))
+    return out
+W = {}      # word -> list of (score, senses)
 R = collections.defaultdict(list)   # english -> [(score, jp, reading)]
 def clean(g): return re.sub(r'\s*\([^)]*\)','',g).strip()
 for seq in kn:
     sids = senses.get(seq, [])
     if not sids: continue
     # glosses: up to 3 senses, up to 2 glosses each (parentheticals kept short)
-    parts=[]
-    for sid in sids[:3]:
-        gs=[g for g in glosses[sid] if g][:2]
-        if gs: parts.append("; ".join(gs))
-    if not parts: continue
-    gloss=" | ".join(parts)
-    pos = poss[sids[0]][0] if poss[sids[0]] else ""
+    kana0=[(i,t) for i,t in kn[seq] if i not in bad_kana] or kn[seq]
+    sens=entry_senses(sids, kana0[0][1])[:4]
+    if not sens: continue
     kana=[(i,t) for i,t in kn[seq] if i not in bad_kana] or kn[seq]
     reading=kana[0][1]
     sc_kana=min([pri_score(knp[i]) for i,_ in kana]+[99])
@@ -49,8 +80,7 @@ for seq in kn:
     for i,t in kana:
         forms.append((t, pri_score(knp[i]) if knp[i] else 60))
     for w,sc in forms:
-        if w not in W or sc < W[w][0]:
-            W[w]=[sc,gloss,reading,pos]
+        W.setdefault(w,[]).append((sc,sens))
     # reverse index only for reasonably common entries
     best=min([f[1] for f in forms]+[99])
     if best<=9:
@@ -63,9 +93,18 @@ for seq in kn:
                 if 0<len(key)<=30:
                     R[key].append((best*10+si*3+gi + (25 if re.fullmatch(r'[\u30a0-\u30ff\u30fc]+', disp) else 0), disp, reading))
 # keep W: priority entries fully; others keep only 1st sense to save space
-for w,v in list(W.items()):
-    if v[0] >= 50: del W[w]
-    else: v[1]=v[1][:140]
+OUT={}
+for w,lst in W.items():
+    lst.sort(key=lambda x:x[0])
+    if lst[0][0] >= 50: continue
+    ss=[]
+    for sc,sens in lst[:3]:
+        if sc>=50 and ss: continue
+        ss.extend(sens)
+    ss=ss[:7]
+    gl="|".join(x[0][:70] for x in ss); ps="|".join(",".join(x[1]) for x in ss); fl="|".join(x[2] for x in ss)
+    rd="|".join(x[3] for x in ss)
+    OUT[w]=[gl,ps,fl,rd]
 rev={}
 for k,lst in R.items():
     lst.sort(); seen=set(); top=[]
@@ -74,6 +113,6 @@ for k,lst in R.items():
         seen.add(jp); top.append([jp,rd])
         if len(top)==3: break
     rev[k]=top
-json.dump({"w":{k:([v[1],v[2]] if v[2]!=k else [v[1]]) for k,v in W.items()}}, open(out+'/ja.json','w',encoding='utf-8'),ensure_ascii=False,separators=(',',':'))
+json.dump({"w":OUT}, open(out+'/ja.json','w',encoding='utf-8'),ensure_ascii=False,separators=(',',':'))
 json.dump({"r":rev}, open(out+'/en.json','w',encoding='utf-8'),ensure_ascii=False,separators=(',',':'))
-print(len(W),len(rev))
+print(len(OUT),len(rev))

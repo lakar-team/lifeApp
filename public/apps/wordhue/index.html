@@ -92,6 +92,13 @@ footer a{color:var(--accent)}
 .tx-line .ts{font-family:var(--mono);font-size:11px;color:var(--text-dim2);padding-top:4px}
 .tx-line button{padding:3px 9px;font-size:12px}
 .tx-line.pending .t{color:var(--text-dim2);font-style:italic}
+
+.fhead{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.dur{font-family:var(--mono);font-size:11px;color:var(--text-dim2)}
+button.spk{padding:1px 9px;border-radius:99px;font-size:11px;font-weight:700;border:1px solid var(--border)}
+.spk-0{color:#60a5fa;border-color:#2c5c8a}.spk-1{color:#4ade80;border-color:#2f6b3e}.spk-2{color:#fb923c;border-color:#8a5a2c}
+.spk-3{color:#c084fc;border-color:#6a4a8a}.spk-4{color:#f87171;border-color:#8a3c3c}.spk-5{color:#2dd4bf;border-color:#2a6b63}
+.has-alt{cursor:pointer;border-bottom:1px dotted var(--text-dim2)}
 </style>
 </head>
 <body>
@@ -112,10 +119,11 @@ footer a{color:var(--accent)}
     <textarea id="input" placeholder="日本語 or English… e.g. 桃太郎は鬼ヶ島へ行きました。 / The old woman washed clothes at the river.">桃太郎は鬼ヶ島へ行きました。</textarea>
     <div class="bar">
       <button class="primary" id="go">Translate</button>
+      <button id="newConv" title="Clear the feed and forget the conversation topic">New conversation</button>
       <select id="dir" title="Translation direction" style="background:var(--bg-elev);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 8px;font:inherit">
         <option value="auto" selected>Auto-detect</option><option value="ja">日本語 → English</option><option value="en">English → 日本語</option>
       </select>
-      <span class="status" id="status"></span>
+      <span class="status" id="status"></span><span class="status" id="ctxInfo" style="color:var(--text-dim2)"></span>
       <span class="spacer"></span>
       <button class="tog on" id="tFuri">Furigana</button>
       <button class="tog on" id="tRoma">Romaji</button>
@@ -142,8 +150,14 @@ footer a{color:var(--accent)}
       <button id="txStop" disabled>Stop</button>
     </div>
     <div class="bar" style="margin-top:8px">
-      <label class="status"><input type="checkbox" id="txAuto"> send each line to Wordhue automatically</label>
+      <label class="status"><input type="checkbox" id="txAuto"> send each line to Wordhue</label>
+      <label class="status"><input type="checkbox" id="txSpk"> guess speakers <span title="Experimental: groups lines by voice pitch and tone. Works best with 2 clearly different voices. Click a speaker chip to fix it.">(experimental)</span></label>
       <span class="spacer"></span>
+      <label class="status" title="How long a pause ends a line">pause
+        <select id="txPause"><option value="0.4">0.4 s</option><option value="0.7" selected>0.7 s</option><option value="1.2">1.2 s</option><option value="2">2 s</option></select></label>
+      <label class="status" title="Longest a single line may run before it is cut">max
+        <select id="txMax"><option value="8">8 s</option><option value="15" selected>15 s</option><option value="25">25 s</option><option value="30">30 s</option></select></label>
+      <button id="txClear" title="Clear this list and the conversation feed">New conversation</button>
       <span class="status" id="txStatus">idle</span>
     </div>
     <div class="meter"><i id="txMeter"></i></div>
@@ -177,7 +191,7 @@ API = API.replace(/\/+$/, "");
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-let showFuri = true, lastResult = null;
+let showFuri = true;
 
 const LEG = {noun:"noun",propn:"name",pron:"pronoun",verb:"verb",aux:"auxiliary",adj:"adjective",adv:"adverb",particle:"particle / connector",det:"determiner",ins:"added for English"};
 $("#legend").innerHTML = Object.entries(LEG).map(([k,v]) => `<span class="${k==="ins"?"w ins":"c-"+k}">■ ${v}</span>`).join("");
@@ -190,9 +204,13 @@ const EXAMPLES = ["むかしむかし、ある所におじいさんとおばあ�
 $("#examples").innerHTML = EXAMPLES.map((e,i) => `<button class="chip" data-ex="${i}">${esc(e.slice(0,14))}…</button>`).join("");
 document.querySelectorAll("[data-ex]").forEach(b => b.onclick = () => { $("#input").value = EXAMPLES[+b.dataset.ex]; run(); });
 
-function span(p){
+/* ---------- conversation feed ---------- */
+let feed = [];          // newest first: {kind:"ja"|"en", s, meta:{speaker,dur,t}, demo}
+let altIdx = new WeakMap();
+
+function span(p, alt){
   const cls = p.inserted ? "w ins" : `w c-${p.cls}`;
-  return `<span class="${cls}" data-ids="${(p.ids||[]).join(",")}">${esc(p.text)}</span>`;
+  return `<span class="${cls}${alt ? " has-alt" : ""}" data-ids="${(p.ids||[]).join(",")}"${alt ? ` data-alt="${alt}" title="click for other meanings"` : ""}>${esc(p.text)}</span>`;
 }
 function jaTok(t){
   const segs = t.furi || [[t.text, null]];
@@ -204,20 +222,40 @@ function romaRow(s){
     `<span class="w c-${p.cls}" data-ids="${p.ids.join(",")}">${esc(p.text)}</span>`).join("")}</span>`).join(" ");
 }
 const joinEn = (s) => s.english.map(p=>p.text).join(" ").replace(/ ([.,?!”])/g,"$1").replace(/“ /g,"“");
-
-function renderEn(result){
-  lastResult = result;
-  $("#out").innerHTML = result.sentences.map(s => {
-    const c = s.confidence, bc = c>=.85?"b-hi":c>=.6?"b-mid":"b-lo";
-    const jaTxt = s.jp.map(t=>t.text).join("").replace(/ /g,"");
-    const rm = s.jp.map(t=>t.romaji).join(" ").replace(/ ([.,?!])/g,"$1");
-    const en = s.src.map(t=>t.text).join(" ").replace(/ ([.,?!])/g,"$1");
-    const jaSpan = t => {
-      const inner = (t.furi||[[t.text,null]]).map(([txt, ruby]) => showFuri && ruby ? `<ruby>${esc(txt)}<rt data-rt="${esc(ruby)}"></rt></ruby>` : esc(txt)).join("");
-      const alt = t.alts && t.alts.length ? ` title="also: ${esc(t.alts.map(a=>a[0]).join("、 "))}"` : "";
-      return `<span class="w c-${t.cls}" data-ids="${t.id}"${alt}>${inner}</span>`;
-    };
-    return `<div class="card">
+const SPK = ["A","B","C","D","E","F"];
+function headHtml(m, fi){
+  if (!m) return "";
+  const spk = m.speaker ? `<button class="spk spk-${SPK.indexOf(m.speaker)}" data-fspk="${fi}" title="click to change speaker">${esc(m.speaker)}</button>` : "";
+  const dur = m.dur ? `<span class="dur">${m.dur.toFixed(1)} s</span>` : "";
+  const t = m.t ? `<span class="dur">${esc(m.t)}</span>` : "";
+  return `<div class="fhead">${spk}${dur}${t}</div>`;
+}
+function cardJa(it, fi){
+  const s = it.s, c = s.confidence, bc = c>=.85?"b-hi":c>=.6?"b-mid":"b-lo";
+  const ja = s.tokens.map(t=>t.text).join("");
+  const rm = (s.romaji||[]).map(g=>g.text).join(" ").replace(/ ([.,?!])/g,"$1");
+  const altOf = p => (s.alts && p.ids && p.ids.length === 1 && s.alts[p.ids[0]]) ? `${fi}:${p.ids[0]}` : "";
+  return `<div class="card">${headHtml(it.meta, fi)}
+      <div class="row ja"><span class="lbl">日本語 </span>${s.tokens.map(jaTok).join("")}</div>
+      <div class="row roma"><span class="lbl">romaji</span>${romaRow(s)}</div>
+      <div class="row lit"><span class="lbl">literal</span>${s.literal.map(p=>span(p, altOf(p))).join("")}</div>
+      <div class="row en"><span class="lbl">English</span>${s.english.map(p=>span(p, altOf(p))).join("")}</div>
+      <div class="meta"><span class="badge ${bc}">confidence ${c.toFixed(2)}</span>
+        ${s.warnings.length?`<details><summary>${s.warnings.length} note(s)</summary>${s.warnings.map(esc).join("<br>")}</details>`:""}
+        <span class="copy"><button data-copy="${esc(ja)}">Copy 日本語</button><button data-copy="${esc(rm)}">Copy romaji</button><button data-copy="${esc(joinEn(s))}">Copy English</button></span>
+      </div></div>`;
+}
+function cardEn(it, fi){
+  const s = it.s, c = s.confidence, bc = c>=.85?"b-hi":c>=.6?"b-mid":"b-lo";
+  const jaTxt = s.jp.map(t=>t.text).join("").replace(/ /g,"");
+  const rm = s.jp.map(t=>t.romaji).join(" ").replace(/ ([.,?!])/g,"$1");
+  const en = s.src.map(t=>t.text).join(" ").replace(/ ([.,?!])/g,"$1");
+  const jaSpan = t => {
+    const inner = (t.furi||[[t.text,null]]).map(([txt, ruby]) => showFuri && ruby ? `<ruby>${esc(txt)}<rt data-rt="${esc(ruby)}"></rt></ruby>` : esc(txt)).join("");
+    const has = t.alts && t.alts.length;
+    return `<span class="w c-${t.cls}${has?" has-alt":""}" data-ids="${t.id}"${has?` data-alt="${fi}:${t.id}" title="click for other words"`:""}>${inner}</span>`;
+  };
+  return `<div class="card">${headHtml(it.meta, fi)}
       <div class="row en"><span class="lbl">English</span>${s.src.map(t=>`<span class="w c-${t.cls}" data-ids="${t.id}">${esc(t.text)}</span>`).join("")}</div>
       <div class="row ja"><span class="lbl">日本語 </span>${s.jp.map(jaSpan).join("")}</div>
       <div class="row roma"><span class="lbl">romaji</span>${s.jp.map(t=>`<span class="w c-${t.cls}" data-ids="${t.id}">${esc(t.romaji)}</span>`).join(" ")}</div>
@@ -225,66 +263,58 @@ function renderEn(result){
         ${s.warnings.length?`<details><summary>${s.warnings.length} note(s)</summary>${s.warnings.map(esc).join("<br>")}</details>`:""}
         <span class="copy"><button data-copy="${esc(en)}">Copy English</button><button data-copy="${esc(jaTxt)}">Copy 日本語</button><button data-copy="${esc(rm)}">Copy romaji</button></span>
       </div></div>`;
-  }).join("");
 }
-
-function render(result){
-  lastResult = result;
-  $("#out").innerHTML = result.sentences.map(s => {
-    const c = s.confidence, bc = c>=.85?"b-hi":c>=.6?"b-mid":"b-lo";
-    const ja = s.tokens.map(t=>t.text).join("");
-    const rm = (s.romaji||[]).map(g=>g.text).join(" ").replace(/ ([.,?!])/g,"$1");
-    return `<div class="card">
-      <div class="row ja"><span class="lbl">日本語 </span>${s.tokens.map(jaTok).join("")}</div>
-      <div class="row roma"><span class="lbl">romaji</span>${romaRow(s)}</div>
-      <div class="row lit"><span class="lbl">literal</span>${s.literal.map(span).join("")}</div>
-      <div class="row en"><span class="lbl">English</span>${s.english.map(span).join("")}</div>
-      <div class="meta"><span class="badge ${bc}">confidence ${c.toFixed(2)}</span>
-        ${s.warnings.length?`<details><summary>${s.warnings.length} note(s)</summary>${s.warnings.map(esc).join("<br>")}</details>`:""}
-        <span class="copy"><button data-copy="${esc(ja)}">Copy 日本語</button><button data-copy="${esc(rm)}">Copy romaji</button><button data-copy="${esc(joinEn(s))}">Copy English</button></span>
-      </div></div>`;
-  }).join("");
+function renderFeed(){
+  $("#out").innerHTML = feed.map((it, i) => it.kind === "en" ? cardEn(it, i) : cardJa(it, i)).join("");
+  const L = window.WordhueLocal, c = L && L.context ? L.context() : null;
+  $("#ctxInfo").textContent = feed.length && !feed.every(x=>x.demo) && c ? `conversation: ${feed.length} line${feed.length>1?"s":""}${c.words.length ? " · topic: " + c.words.slice(0,4).join(", ") : ""}` : "";
+}
+function addToFeed(result, meta){
+  const kind = result.dir === "en" ? "en" : "ja";
+  const items = result.sentences.map(s => ({kind, s, meta: meta ? {...meta} : null, demo: !!result.demo}));
+  feed = [...items.reverse(), ...feed.filter(x => !x.demo)];   // newest on top; a demo card never survives a real one
+  renderFeed();
+}
+function render(result){ feed = []; addToFeed(result); }           // used for the built-in preview
+function newConversation(){
+  feed = []; renderFeed();
+  if (window.WordhueLocal) window.WordhueLocal.resetContext();
+  if (window.WordhueTx) window.WordhueTx.clear();
+  setStatus("new conversation — context cleared", "ok");
+  renderFeed();
 }
 
 function setStatus(msg, cls=""){ const el=$("#status"); el.textContent=msg; el.className="status "+cls; }
 
-async function run(auto){
+async function run(o){
+  o = o || {};
   const text = $("#input").value.trim();
   if (!text) return;
   const L = window.WordhueLocal;
   // first paint: show the built-in preview instantly without downloading any dictionary
-  if (auto === true && PREVIEW[text]) { render(PREVIEW[text]); setStatus("preview — press Translate to use the live dictionary", "warn"); return; }
+  if (o.initial === true && PREVIEW[text]) { addToFeed({...PREVIEW[text], demo:true}); setStatus("preview — press Translate to use the live dictionary", "warn"); return; }
   $("#go").disabled = true;
   let dir = $("#dir").value; if (dir === "auto") dir = L.detect(text);
+  const meta = o.speaker || o.dur ? {speaker: o.speaker, dur: o.dur, t: o.t} : null;
   try {
     if (dir === "en") {
       const r = await L.en2ja(text, m => setStatus(m, "warn"));
-      renderEn(r); setStatus(`word-for-word English → 日本語 · ${r.ms} ms`, "ok");
-    } else if (API && !API.includes("__")) {
-      // optional full-grammar server, if one is configured; falls back to the local dictionary
-      try {
-        setStatus("translating… (first request after idle can take ~20s while the server wakes)");
-        const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 30000);
-        const r = await fetch(API + "/analyze", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text}), signal: ctl.signal});
-        clearTimeout(timer); if (!r.ok) throw new Error(r.statusText);
-        const data = await r.json(); render(data); setStatus(`done · ${data.ms} ms`, "ok");
-      } catch (_) {
-        const r = await L.ja2en(text, m => setStatus(m, "warn")); render(r); setStatus(`server unreachable — local word-for-word · ${r.ms} ms`, "warn");
-      }
+      addToFeed(r, meta); setStatus(`word-for-word English → 日本語 · ${r.ms} ms`, "ok");
     } else {
       const r = await L.ja2en(text, m => setStatus(m, "warn"));
-      render(r); setStatus(`word-for-word 日本語 → English · ${r.ms} ms`, "ok");
+      addToFeed(r, meta); setStatus(`word-for-word 日本語 → English · ${r.ms} ms`, "ok");
     }
   } catch (e) {
     const hit = PREVIEW[text];
-    if (hit) { render(hit); setStatus("dictionary failed to load — showing saved preview", "warn"); }
+    if (hit) { addToFeed({...PREVIEW[text], demo:true}); setStatus("dictionary failed to load — showing saved preview", "warn"); }
     else setStatus("Error: " + e.message, "err");
   } finally { $("#go").disabled = false; }
 }
 
 $("#go").onclick = () => run();
+$("#newConv").onclick = newConversation;
 $("#input").addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") run(); });
-$("#tFuri").onclick = e => { showFuri = !showFuri; e.target.classList.toggle("on", showFuri); if (lastResult) (lastResult.dir === "en" ? renderEn : render)(lastResult); };
+$("#tFuri").onclick = e => { showFuri = !showFuri; e.target.classList.toggle("on", showFuri); renderFeed(); };
 $("#tRoma").onclick = e => { const on = !document.body.classList.toggle("hide-roma"); e.target.classList.toggle("on", on); };
 $("#tLit").onclick  = e => { const on = !document.body.classList.toggle("hide-lit");  e.target.classList.toggle("on", on); };
 
@@ -295,6 +325,25 @@ document.addEventListener("mouseover", e => {
   card.querySelectorAll(".w").forEach(x => x.classList.toggle("hl", (x.dataset.ids||"").split(",").some(i => ids.has(i))));
 });
 document.addEventListener("mouseout", e => { const c = e.target.closest && e.target.closest(".card"); if (c) c.querySelectorAll(".hl").forEach(x=>x.classList.remove("hl")); });
+document.addEventListener("click", e => {
+  const a = e.target.closest("[data-alt]");
+  if (a) {
+    const [fi, id] = a.dataset.alt.split(":").map(Number), it = feed[fi]; if (!it) return;
+    if (it.kind === "ja") {
+      const s = it.s, list = s.alts[id], st = altIdx.get(s) || {}; st[id] = ((st[id] || 0) + 1) % list.length; altIdx.set(s, st);
+      const g = list[st[id]]; s.literal[id].text = g; const en = s.english.find(x => x.ids.length === 1 && x.ids[0] === id); if (en) en.text = g;
+    } else {
+      const t = it.s.jp[id]; if (!t.all) { t.all = [[t.text, t.kana], ...t.alts]; t.ai = 0; }
+      t.ai = (t.ai + 1) % t.all.length; const [jp, rd] = t.all[t.ai];
+      t.text = jp; t.kana = rd; t.romaji = WordhueLocal.romaji(rd); t.furi = WordhueLocal.furi(jp, rd);
+    }
+    renderFeed(); return;
+  }
+  const sp = e.target.closest("[data-fspk]");
+  if (sp) { const it = feed[+sp.dataset.fspk]; if (!it || !it.meta) return;
+    const used = Math.min(SPK.length, Math.max(2, ...feed.map(x => x.meta && x.meta.speaker ? SPK.indexOf(x.meta.speaker) + 2 : 0)));
+    it.meta.speaker = SPK[(SPK.indexOf(it.meta.speaker) + 1) % used]; renderFeed(); }
+});
 document.addEventListener("click", async e => {
   const b = e.target.closest("[data-copy]"); if (!b) return;
   const txt = b.dataset.copy;
@@ -306,7 +355,8 @@ document.addEventListener("click", async e => {
 /* ================= Live transcription (Whisper in the browser) ================= */
 (() => {
   const TF_URL = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2";
-  const SR = 16000, MAX_SEG = 15, MIN_SEG = 0.8, SIL_END = 0.7, THRESH = 0.012;
+  const SR = 16000, MIN_SEG = 0.8, THRESH = 0.012;
+  const maxSeg = () => +$t("txMax").value, silEnd = () => +$t("txPause").value;
   const $t = id => document.getElementById(id);
   const st = (m, c="") => { const e=$t("txStatus"); e.textContent=m; e.className="status "+c; };
   let asr = null, asrKey = "", ctx = null, stream = null, node = null, running = false;
@@ -362,15 +412,17 @@ document.addEventListener("click", async e => {
     if (speech === 0) return;                 // still waiting for speech to begin
     buf.push(chunk); bufLen += chunk.length;
     const len = bufLen / SR;
-    if ((silence >= SIL_END && speech >= MIN_SEG) || len >= MAX_SEG) flush();
-    else if (silence >= SIL_END) { buf = []; bufLen = speech = silence = 0; }
+    if ((silence >= silEnd() && speech >= MIN_SEG) || len >= maxSeg()) flush();
+    else if (silence >= silEnd()) { buf = []; bufLen = speech = silence = 0; }
   }
 
   function flush() {
     const out = new Float32Array(bufLen); let o = 0;
     for (const c of buf) { out.set(c, o); o += c.length; }
+    const dur = Math.max(0.1, bufLen / SR - silence);          // length of the listen, without the trailing pause
     buf = []; bufLen = speech = silence = 0;
-    const row = addLine("…", true);
+    const row = addLine("…", true, dur);
+    if ($t("txSpk").checked) setSpeaker(row, guessSpeaker(out));
     queue.push({ audio: out, row }); drain();
   }
 
@@ -385,7 +437,7 @@ document.addEventListener("click", async e => {
         const r = await asr(audio, o);
         const text = (r.text || "").trim();
         if (!text || HALLU.test(text)) row.remove();
-        else { row.classList.remove("pending"); row.querySelector(".t").textContent = text; if ($t("txAuto").checked) send(text); }
+        else { row.classList.remove("pending"); row.querySelector(".t").textContent = text; if ($t("txAuto").checked) send(text, row); }
       } catch (e) { row.querySelector(".t").textContent = "(failed: " + e.message + ")"; }
     }
     busy = false;
@@ -393,19 +445,80 @@ document.addEventListener("click", async e => {
   // Whisper tends to invent these on near-silence
   const HALLU = /^(ご視聴ありがとうございました。?|ありがとうございました。?|thank(s| you) for watching[.!]?|you|\.+)$/i;
 
-  function addLine(text, pending) {
+  function addLine(text, pending, dur) {
     const log = $t("txLog"), row = document.createElement("div");
     row.className = "tx-line" + (pending ? " pending" : "");
     const s = Math.floor((Date.now() - t0) / 1000), ts = String(Math.floor(s/60)).padStart(2,"0") + ":" + String(s%60).padStart(2,"0");
-    row.innerHTML = '<span class="ts">' + ts + '</span><span class="t"></span><button data-copy="">Copy</button><button class="tx-send">→ Wordhue</button>';
+    row.dataset.ts = ts; row.dataset.dur = dur || 0;
+    row.innerHTML = '<span class="ts">' + ts + '</span><span class="dur">' + (dur ? dur.toFixed(1) + " s" : "") + '</span><span class="t"></span><button class="spk" style="display:none"></button><button data-copy="">Copy</button><button class="tx-send">→ Wordhue</button>';
     row.querySelector(".t").textContent = text;
-    row.querySelector(".tx-send").onclick = () => send(row.querySelector(".t").textContent);
+    row.querySelector(".tx-send").onclick = () => send(row.querySelector(".t").textContent, row);
+    row.querySelector(".spk").onclick = () => { const n = SPK.indexOf(row.dataset.spk); setSpeaker(row, SPK[(n + 1) % Math.max(2, spkN() + 1)]); };
     row.querySelector("[data-copy]").addEventListener("click", () => { row.querySelector("[data-copy]").dataset.copy = row.querySelector(".t").textContent; }, true);
     log.appendChild(row); log.scrollTop = log.scrollHeight;
     return row;
   }
 
-  function send(text) { $("#input").value = text; run(); }
+  function send(text, row) {
+    $("#input").value = text;
+    run({ speaker: row && row.dataset.spk || undefined, dur: row ? +row.dataset.dur : undefined, t: row ? row.dataset.ts : undefined });
+  }
+
+  /* ---- experimental "who is speaking": cluster lines by pitch + spectral shape ---- */
+  const FN = 1024, FH = 512, BANDS = [0, 300, 600, 1200, 2400, 4000, 8000];
+  const hann = Float32Array.from({ length: FN }, (_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (FN - 1)));
+  function fft(re, im) {
+    const n = re.length;
+    for (let i = 1, j = 0; i < n; i++) { let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit; if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
+    for (let len = 2; len <= n; len <<= 1) {
+      const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang);
+      for (let i = 0; i < n; i += len) { let cr = 1, ci = 0;
+        for (let k = 0; k < len / 2; k++) { const a = i + k, b = a + len / 2, tr = re[b] * cr - im[b] * ci, ti = re[b] * ci + im[b] * cr;
+          re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti; const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t; } }
+    }
+  }
+  function voiceFeatures(a) {
+    const f0s = [], bands = new Float64Array(BANDS.length - 1), re = new Float64Array(FN), im = new Float64Array(FN); let cnt = 0;
+    for (let o = 0; o + FN <= a.length; o += FH) {
+      let e = 0; for (let i = 0; i < FN; i++) { const v = a[o + i]; e += v * v; }
+      if (Math.sqrt(e / FN) < 0.015) continue;
+      // pitch by autocorrelation (70–400 Hz)
+      let best = 0, bl = 0; const e0 = e || 1;
+      for (let lag = 40; lag <= 228; lag++) { let c = 0; for (let i = 0; i < FN - lag; i += 2) c += a[o + i] * a[o + i + lag]; c = c * 2 / e0; if (c > best) { best = c; bl = lag; } }
+      if (best > 0.35) f0s.push(SR / bl);
+      for (let i = 0; i < FN; i++) { re[i] = a[o + i] * hann[i]; im[i] = 0; }
+      fft(re, im);
+      let tot = 0; const bb = new Float64Array(bands.length);
+      for (let k = 1; k < FN / 2; k++) { const hz = k * SR / FN, m = re[k] * re[k] + im[k] * im[k]; tot += m; for (let b = 0; b < bands.length; b++) if (hz >= BANDS[b] && hz < BANDS[b + 1]) { bb[b] += m; break; } }
+      if (tot > 0) { for (let b = 0; b < bands.length; b++) bands[b] += bb[b] / tot; cnt++; }
+    }
+    if (cnt < 3) return null;
+    f0s.sort((x, y) => x - y);
+    return { lf0: f0s.length >= 3 ? Math.log(f0s[f0s.length >> 1]) : null, bands: Array.from(bands, v => v / cnt) };
+  }
+  let spkC = [];                                    // running cluster centres
+  const spkN = () => spkC.length;
+  function dist(f, c) {
+    let d = 0;
+    if (f.lf0 != null && c.lf0 != null) d += Math.pow((f.lf0 - c.lf0) / 0.12, 2);
+    for (let i = 0; i < f.bands.length; i++) d += Math.pow((f.bands[i] - c.bands[i]) / 0.07, 2) / f.bands.length;
+    return Math.sqrt(d);
+  }
+  function guessSpeaker(a) {
+    const f = voiceFeatures(a);
+    if (!f) return spkC.length ? SPK[lastSpk] : "A";
+    let bi = -1, bd = Infinity; spkC.forEach((c, i) => { const d = dist(f, c); if (d < bd) { bd = d; bi = i; } });
+    if (bi < 0 || (bd > 1.7 && spkC.length < SPK.length)) { spkC.push({ lf0: f.lf0, bands: f.bands.slice(), n: 1 }); bi = spkC.length - 1; }
+    else { const c = spkC[bi], k = 1 / (++c.n); if (f.lf0 != null) c.lf0 = c.lf0 == null ? f.lf0 : c.lf0 + (f.lf0 - c.lf0) * k; c.bands = c.bands.map((v, i) => v + (f.bands[i] - v) * k); }
+    lastSpk = bi; return SPK[bi];
+  }
+  let lastSpk = 0;
+  function setSpeaker(row, label) {
+    row.dataset.spk = label;
+    const b = row.querySelector(".spk"); b.style.display = ""; b.textContent = label; b.className = "spk spk-" + SPK.indexOf(label);
+  }
+  window.WordhueTx = { clear() { $t("txLog").innerHTML = ""; spkC = []; lastSpk = 0; queue.length = 0; }, _spk: { voiceFeatures, guessSpeaker, reset() { spkC = []; lastSpk = 0; } } };
+  $t("txClear").onclick = () => newConversation();
 
   function cleanup() {
     running = false;
@@ -427,7 +540,7 @@ document.addEventListener("click", async e => {
   }
 })();
 
-run(true);
+run({initial:true});
 </script>
 </body>
 </html>
