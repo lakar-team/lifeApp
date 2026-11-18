@@ -350,8 +350,39 @@
     return { dir: "en", input: text, sentences, ms: Math.round(performance.now() - t0) };
   }
 
+
+  /* ---------- reading-only view: kana + romaji per word, no dictionary needed ---------- */
+  async function readings(text) {
+    const tok = await getTok(), out = [];
+    splitSentences(text).forEach(sent => {
+      tok.tokenize(sent).forEach(k => {
+        const surf = k.surface_form, reading = k.reading && k.reading !== "*" ? k.reading : surf;
+        let rm = romaji(reading);
+        if (k.pos === "助詞" && surf === "は") rm = "wa"; if (k.pos === "助詞" && surf === "を") rm = "o"; if (k.pos === "助詞" && surf === "へ") rm = "e";
+        if (k.pos === "記号") rm = surf;
+        const cls = k.pos_detail_1 === "固有名詞" ? "propn" : (CLS[k.pos] || "other");
+        out.push({ text: surf, romaji: rm, furi: furi(surf, reading), cls, k });
+      });
+    });
+    return out;
+  }
+  // meanings of one token (loads the dictionary the first time it is needed)
+  async function meaning(k) {
+    const surf = k.surface_form;
+    if (k.pos === "記号") return [];
+    if (k.pos === "助詞") return [PARTICLE[surf] || "(particle)"];
+    if (k.pos === "助動詞") return [AUX[surf] || AUX[k.basic_form] || "(ending)"];
+    const dict = await getJa(), base = k.basic_form && k.basic_form !== "*" ? k.basic_form : surf;
+    if (VERB_FIX[base] !== undefined && k.pos !== "連体詞") return [VERB_FIX[base]];
+    const e = dict[base] || dict[surf];
+    if (!e) return ["not in the dictionary"];
+    const seen = new Set(), out = [];
+    rankSenses(e, k, ctxWords(), ctxFields()).forEach(r => { const g = shortGloss(r.g), key = g.toLowerCase(); if (g && !seen.has(key)) { seen.add(key); out.push(g); } });
+    return out.slice(0, 5);
+  }
+
   window.WordhueLocal = {
-    ja2en, en2ja, romaji, furi, context, resetContext, snapshot, restore,
+    ja2en, en2ja, romaji, furi, context, resetContext, snapshot, restore, readings, meaning, warmTok: () => getTok(),
     detect: t => (KANJI.test(t) || KANA.test(t)) ? "ja" : "en",
     warm: () => Promise.all([getTok(), getJa()])
   };

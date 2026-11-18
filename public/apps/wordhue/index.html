@@ -167,7 +167,10 @@ textarea#txt{max-height:132px;overflow-y:auto}
 .menu button:hover{background:var(--panel2)}
 .menu .danger{color:var(--rec)}
 .line .untrans{display:flex;align-items:center;gap:12px;font-family:var(--jp);font-size:16px}
-.line .untrans button{margin-left:auto;padding:5px 12px;border-radius:8px;background:var(--panel2);font-size:12px;font-family:var(--sans)}
+.line .inter + .untrans,.line .untrans + .untrans{margin-top:8px;justify-content:flex-end}
+.line .untrans button{padding:5px 12px;border-radius:8px;background:var(--panel2);font-size:12px;font-family:var(--sans)}
+.line .untrans button:hover{background:var(--accent);color:var(--accent-ink)}
+.tok.rd{cursor:pointer}
 .warn{margin-top:8px;font-size:11px;color:var(--dim2)}
 .credits{font-size:11px;color:var(--dim2);line-height:1.6}
 .credits a{color:var(--accent)}
@@ -282,6 +285,10 @@ textarea#txt{max-height:132px;overflow-y:auto}
     const fu = (t.furi || []).filter(p => p[1]).map(p => p[1]).join("");
     return `<span class="tok c-${t.cls}${tag ? " tag" : ""}${alts ? " alt" : ""}" data-it="${item.id}" data-ti="${i}"><span class="fu">${fu ? esc(fu) : "&nbsp;"}</span><span class="ja">${esc(t.text)}</span><span class="ro">${t.cls === "punct" ? "&nbsp;" : esc(t.romaji)}</span><span class="gl">${t.cls === "punct" ? "&nbsp;" : esc(g)}</span></span>`;
   }
+  function tokRd(item, i) {                      // reading only: furigana, Japanese, romaji (tap for meaning)
+    const t = item.rd[i], fu = (t.furi || []).filter(p => p[1]).map(p => p[1]).join(""), punct = t.cls === "punct";
+    return `<span class="tok c-${t.cls}${punct ? "" : " rd"}" data-it="${item.id}" data-ti="${i}"><span class="fu">${fu ? esc(fu) : "&nbsp;"}</span><span class="ja">${esc(t.text)}</span><span class="ro">${punct ? "&nbsp;" : esc(t.romaji)}</span></span>`;
+  }
   function tokEn(item, i) {
     const s = item.s, w = s.src[i], j = s.jp.find(x => x.id === w.id);
     const fu = j && j.furi ? j.furi.filter(p => p[1]).map(p => p[1]).join("") : "";
@@ -299,8 +306,10 @@ textarea#txt{max-height:132px;overflow-y:auto}
     return `<div class="gist"><small>Natural translation</small>${v === undefined ? `<span class="nat-wait">${esc(nat.status || "translating…")}</span>` : `<span>${esc(v)}</span>`}</div>`;
   }
   function itemHtml(item) {
-    if (item.kind === "text")
-      return `<article class="line" data-id="${item.id}">${metaHtml(item)}<div class="untrans"><span>${esc(item.raw)}</span><button data-trans="${item.id}">Translate</button></div></article>`;
+    if (item.kind === "text") {
+      const toks = item.rd ? item.rd.map((t, i) => tokRd(item, i)).join("") : "";
+      return `<article class="line" data-id="${item.id}">${metaHtml(item)}${toks ? `<div class="inter">${toks}</div>` : `<div class="untrans"><span>${esc(item.raw)}</span></div>`}<div class="untrans"><button data-trans="${item.id}">Translate</button></div></article>`;
+    }
     const s = item.s, n = item.kind === "en" ? s.src.length : s.tokens.length;
     let toks = ""; for (let i = 0; i < n; i++) toks += item.kind === "en" ? tokEn(item, i) : tokJa(item, i);
     const warn = s.warnings && s.warnings.length ? `<div class="warn">${s.warnings.length} word${s.warnings.length > 1 ? "s" : ""} not in the dictionary: ${esc(s.warnings.map(x => x.replace(/ (is not in|not found).*$/, "")).join(", "))}</div>` : "";
@@ -372,6 +381,14 @@ textarea#txt{max-height:132px;overflow-y:auto}
     });
   }
 
+  // heard line without translation: show it immediately, then add kana + romaji (a few ms once the tokenizer is ready)
+  function addReadingLine(text, meta) {
+    const item = { kind: "text", raw: text, meta };
+    addItems([item]);
+    if (L.detect(text) !== "ja") return;
+    L.readings(text).then(rd => { item.rd = rd; render(); }).catch(() => {});
+  }
+
   /* ================= listening (audio capture + Whisper) ================= */
   const SR = 16000, MIN_SEG = 0.8, THRESH = 0.012;
   let asr = null, asrKey = "", ctx = null, stream = null, node = null, listening = false, pending = 0;
@@ -397,6 +414,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
       stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
       if (!stream.getAudioTracks().length) { stream.getTracks().forEach(t => t.stop()); throw new Error('No audio was shared. Tick “Share system audio” (or share a tab) in the picker.'); }
       stream.getVideoTracks().forEach(t => t.stop());
+      if (!S.auto) L.warmTok().catch(() => {});
       await loadAsr();
       ctx = new AudioContext({ sampleRate: SR });
       await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([workletSrc], { type: "application/javascript" })));
@@ -456,7 +474,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
         const o = { chunk_length_s: 30, task: "transcribe" }; if (S.lang !== "auto") o.language = S.lang;
         const r = await asr(audio, o), text = (r.text || "").trim();
         if (text && !HALLU.test(text)) {
-          if (S.auto) await translate(text, meta); else addItems([{ kind: "text", raw: text, meta }]);
+          if (S.auto) await translate(text, meta); else addReadingLine(text, meta);
         }
       } catch (e) { toast("Couldn’t transcribe a line: " + e.message); }
       pending = Math.max(0, pending - 1); render();
@@ -582,6 +600,15 @@ textarea#txt{max-height:132px;overflow-y:auto}
       else { const w = it.s.src[i], j = it.s.jp.find(x => x.id === w.id), all = j.all || (j.all = [[j.text, j.kana], ...j.alts]), [jp, rd] = all[k]; j.text = jp; j.kana = rd; j.romaji = L.romaji(rd); j.furi = L.furi(jp, rd); }
       render(); return; }
     $$(".pop").forEach(p => p.remove()); $$(".tok.pin").forEach(x => x.classList.remove("pin"));
+    const rdk = e.target.closest(".tok.rd");
+    if (rdk) {
+      const it = byId(rdk.dataset.it), t = it.rd[+rdk.dataset.ti]; rdk.classList.add("pin");
+      const p = document.createElement("div"); p.className = "pop"; p.innerHTML = `<h5>Meaning</h5><div class="nat-wait" style="padding:4px 6px">looking up…</div>`; rdk.appendChild(p);
+      const row = g => `<div style="padding:3px 6px;font-size:13px">${esc(g)}</div>`;
+      L.meaning(t.k).then(list => { if (p.isConnected) p.innerHTML = `<h5>Meaning</h5>` + (list.length ? list.map(row).join("") : row("no meaning")); })
+        .catch(() => { if (p.isConnected) p.innerHTML = `<h5>Meaning</h5>` + row("couldn’t load the dictionary"); });
+      return;
+    }
     const tk = e.target.closest(".tok.alt"); if (!tk) return;
     const it = byId(tk.dataset.it), i = +tk.dataset.ti; let list, cur;
     if (it.kind === "ja") { list = it.s.alts[i]; cur = it.s.literal[i].text; }
@@ -595,7 +622,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
 
   applySettings(); render();
   if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) { $("#listen").disabled = true; $("#listen").title = "This browser can’t capture PC audio. Use desktop Chrome or Edge."; setStatus("Listening needs desktop Chrome or Edge.", true); }
-  window.WordhueTest = { voiceFeatures, guessSpeaker, reset() { spkC = []; lastSpk = 0; }, items: () => items, translate };
+  window.WordhueTest = { voiceFeatures, guessSpeaker, reset() { spkC = []; lastSpk = 0; }, items: () => items, translate, addReadingLine };
 })();
 
 </script>
