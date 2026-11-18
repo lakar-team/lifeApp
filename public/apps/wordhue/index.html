@@ -20,8 +20,18 @@ body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,"Hiragino Sans","Noto Sans JP",sans-serif;
   font-size:14px;-webkit-font-smoothing:antialiased}
 main{max-width:980px;margin:0 auto;padding:28px 16px 60px}
-h1{font-size:18px;font-weight:600;margin:0 0 4px}
-h1 span{color:var(--text-dim2);font-weight:400;font-size:13px}
+header.hero{position:relative;padding:22px 0 18px;margin-bottom:6px;border-bottom:1px solid var(--border)}
+header.hero::after{content:"";position:absolute;left:0;bottom:-1px;width:160px;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,var(--noun),var(--pron),var(--particle),var(--adj),var(--adv),var(--verb),var(--aux))}
+.brand{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 14px}
+h1.logo{margin:0;font-size:38px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+h1.logo span{color:inherit;font-size:inherit;font-weight:inherit}
+.logo .l1{color:var(--noun)}.logo .l2{color:var(--pron)}.logo .l3{color:var(--particle)}
+.logo .l4{color:var(--adj)}.logo .l5{color:var(--adv)}.logo .l6{color:var(--verb)}.logo .l7{color:var(--aux)}
+.jp{font-size:15px;color:var(--text-dim);letter-spacing:.08em}
+.beta{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);
+  border:1px solid var(--accent-dim);border-radius:999px;padding:2px 8px;align-self:center}
+.tagline{margin:8px 0 0;font-size:16px;color:var(--text)}
 .lead{color:var(--text-dim);margin:0 0 14px;line-height:1.5}
 .panel{background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px}
 textarea{width:100%;min-height:84px;resize:vertical;background:var(--bg-elev);border:1px solid var(--border);color:var(--text);
@@ -72,7 +82,14 @@ footer a{color:var(--accent)}
 </head>
 <body>
 <main>
-  <h1>Wordhue <span>· color-coded Japanese → English (beta)</span></h1>
+  <header class="hero">
+    <div class="brand">
+      <h1 class="logo" aria-label="Wordhue"><span class="l1">W</span><span class="l2">o</span><span class="l3">r</span><span class="l4">d</span><span class="l5">h</span><span class="l6">u</span><span class="l7">e</span></h1>
+      <span class="jp">言葉の色</span>
+      <span class="beta">beta</span>
+    </div>
+    <p class="tagline">See how Japanese becomes English, one color at a time.</p>
+  </header>
   <p class="lead">Every word is colored by its role and linked across four lines — Japanese with furigana, romaji,
     a word-for-word gloss in Japanese order, and the rearranged English. Hover a word to see it everywhere.
     Faded italic words don't exist in the Japanese; they were added so the English reads naturally.</p>
