@@ -182,6 +182,12 @@ textarea#txt{max-height:132px;overflow-y:auto}
 .seg button{padding:5px 11px;border-radius:6px;font-size:12px;color:var(--dim)}
 .seg button[aria-pressed="true"]{background:var(--panel);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.25)}
 .set.credits{display:block}
+.empty{max-width:520px}
+.startrow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.startopt{display:flex;align-items:center;gap:12px;text-align:left;padding:12px 18px;border-radius:14px;background:var(--panel);border:1px solid var(--line);min-width:210px}
+.startopt:first-child:not(:last-child){background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.startopt b{display:block;font-size:14px}.startopt small{display:block;font-size:11px;opacity:.8}
+.startopt:hover{border-color:var(--accent)}
 .no-nat .gist.forced{display:flex}
 
 </style>
@@ -200,7 +206,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   </header>
 
   <div class="topic" id="topic">
-    <span id="topicTxt">New conversation</span><span class="chip" id="topicChip" hidden></span><span class="grow"></span><span class="status" id="ready" aria-live="polite"></span><span class="status" id="status"></span><span id="topicCount"></span>
+    <span id="topicTxt">New conversation</span><span class="chip" id="topicChip" hidden></span><span class="grow"></span><span class="status" id="perf" title="How long the last line took to transcribe"></span><span class="status" id="ready" aria-live="polite"></span><span class="status" id="status"></span><span id="topicCount"></span>
   </div>
 
   <main class="feed" id="feed" aria-live="polite"></main>
@@ -229,15 +235,18 @@ textarea#txt{max-height:132px;overflow-y:auto}
   <aside class="drawer" id="drawer" aria-label="Settings">
     <header>Settings<button class="xbtn" id="closeDrawer" aria-label="Close settings">×</button></header>
     <div class="body">
+      <div class="set" id="srcSet"><span class="lab">Listen to</span>
+        <div class="seg" data-key="source"><button data-v="computer" id="srcComputerBtn">Computer audio</button><button data-v="mic">Microphone</button></div>
+        <span class="hint" id="srcHint"></span></div>
       <div class="set"><span class="lab">Spoken language</span>
         <div class="seg" data-key="lang"><button data-v="japanese">日本語</button><button data-v="english">English</button></div></div>
       <div class="set"><span class="lab">Speech model</span>
         <div class="seg" data-key="model"><button data-v="fast">Fast · 40 MB</button><button data-v="balanced">Balanced · 80 MB</button><button data-v="accurate">Accurate · 250 MB</button></div>
         <span class="hint">Fast may miss words; Accurate is slower. Downloaded once, then cached.</span></div>
       <div class="set"><span class="lab">A pause of this length ends a line</span>
-        <div class="seg" data-key="pause"><button data-v="0.4">0.4 s</button><button data-v="0.7">0.7 s</button><button data-v="1.2">1.2 s</button><button data-v="2">2 s</button></div></div>
+        <div class="seg" data-key="pause"><button data-v="0.3">0.3 s</button><button data-v="0.5">0.5 s</button><button data-v="0.7">0.7 s</button><button data-v="1.2">1.2 s</button><button data-v="2">2 s</button></div></div>
       <div class="set"><span class="lab">Longest single line</span>
-        <div class="seg" data-key="max"><button data-v="8">8 s</button><button data-v="15">15 s</button><button data-v="25">25 s</button><button data-v="30">30 s</button></div></div>
+        <div class="seg" data-key="max"><button data-v="5">5 s</button><button data-v="8">8 s</button><button data-v="15">15 s</button><button data-v="25">25 s</button><button data-v="30">30 s</button></div></div>
       <div class="set"><div class="row2"><div><span class="lab">Translate automatically</span><br><span class="hint">Each heard line is translated as it arrives.</span></div><button class="switch" role="switch" data-sw="auto" aria-label="Translate automatically"></button></div></div>
       <div class="set"><div class="row2"><div><span class="lab">Guess speakers</span> <span class="hint">· experimental</span><br><span class="hint">Groups lines by voice. Tap a chip to correct it.</span></div><button class="switch" role="switch" data-sw="spk" aria-label="Guess speakers"></button></div></div>
       <div class="set"><div class="row2"><div><span class="lab">Natural translation</span> <span class="hint">· optional</span><br><span class="hint">A fluent English line under each Japanese sentence. Downloads a ~100 MB model once.</span></div><button class="switch" role="switch" data-sw="nat" aria-label="Natural translation"></button></div></div>
@@ -270,11 +279,15 @@ textarea#txt{max-height:132px;overflow-y:auto}
     const _open = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function (m, u, ...r) { return _open.call(this, m, /\/vendor\/dict\//.test(String(u)) ? u + (String(u).includes("?") ? "&" : "?") + "t=" + Date.now() : u, ...r); };
   }
+  const md = navigator.mediaDevices;
+  const isPhone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.userAgentData && navigator.userAgentData.mobile) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  const canComputer = !!(md && md.getDisplayMedia) && !isPhone;   // phones cannot share other apps' audio
+  const canMic = !!(md && md.getUserMedia);
   let tfP = null;
   const tf = () => tfP || (tfP = import(TF_URL).then(m => { if (FRESH) m.env.useBrowserCache = false; return m; }));
 
   /* ================= settings (remembered on this device) ================= */
-  const DEF = { lang: "japanese", model: "balanced", pause: "0.7", max: "15", auto: false, spk: true, dur: true, nat: false, scroll: true, furi: true, roma: true, mean: true, dir: "ja" };
+  const DEF = { lang: "japanese", model: isPhone ? "fast" : "accurate", pause: "0.3", max: "5", source: canComputer ? "computer" : "mic", auto: false, spk: true, dur: true, nat: false, scroll: true, furi: true, roma: true, mean: true, dir: "ja" };
   const S = { ...DEF };
   if (!FRESH) { try { Object.assign(S, JSON.parse(localStorage.getItem("wordhue.settings") || "{}")); } catch (_) {} }
   if (S.lang !== "english") S.lang = "japanese"; if (S.dir !== "en") S.dir = "ja";      // no auto-detect
@@ -288,6 +301,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
     app.classList.toggle("no-spk", !S.spk); app.classList.toggle("no-dur", !S.dur); app.classList.toggle("no-nat", !S.nat);
     app.classList.toggle("no-furi", !S.furi); app.classList.toggle("no-roma", !S.roma); app.classList.toggle("no-lit", !S.mean);
     $("#tgFuri").setAttribute("aria-pressed", String(!!S.furi)); $("#tgRoma").setAttribute("aria-pressed", String(!!S.roma)); $("#tgLit").setAttribute("aria-pressed", String(!!S.mean));
+    $("#srcComputerBtn").hidden = !canComputer; $("#srcHint").textContent = canComputer ? "" : (isPhone ? "Phones can only use the microphone." : "This browser can only use the microphone.");
     $("#dirTxt").textContent = { ja: "日本語 → English", en: "English → 日本語" }[S.dir];
   }
 
@@ -335,14 +349,19 @@ textarea#txt{max-height:132px;overflow-y:auto}
   }
   function liveHtml() {
     if (listening && model.loading) return `<div class="live"><span class="pulse"></span><span>Getting the speech model ready. Listening already; lines appear when it is done.</span><span class="livebar"><i style="width:${model.pct}%"></i></span><span>${model.pct}%</span></div>`;
-    if (listening) return `<div class="live"><span class="pulse"></span><span>${pending > 0 ? "transcribing…" : "listening…"}</span></div>`;
+    if (listening) return `<div class="live"><span class="pulse"></span><span>${pending > 0 ? "transcribing…" : "listening to " + srcLabel + "…"}</span></div>`;
     if (items.length) return `<div class="live idle"><span class="pulse"></span><span>Paused. Press Listen to continue this conversation.</span></div>`;
     return "";
   }
+  const ICO_PC = `<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="15" height="10" rx="1.5"/><path d="M7 17h6M10 13.5V17"/></svg>`, ICO_MIC = `<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7.5" y="2.5" width="5" height="9" rx="2.5"/><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5"/></svg>`;
   function emptyHtml() {
-    return `<div class="empty"><h2>Translate whatever your PC is playing</h2><p>Words appear as they are spoken, each with its reading. Tap a word for its meaning.</p>
-      <button class="send" id="startBig" style="height:48px;padding:0 26px;font-size:15px;border-radius:99px">● Start listening</button>
-      <p style="margin:14px 0 0;font-size:12px">Pick a browser tab and keep <strong>Share audio</strong> ticked. Or type below to translate text.</p></div>`;
+    const btn = (id, ico, t, sub) => `<button class="startopt" id="${id}">${ico}<span><b>${t}</b><small>${sub}</small></span></button>`;
+    const pc = canComputer ? btn("startComputer", ICO_PC, "Computer audio", "A browser tab or your screen") : "";
+    const mic = canMic ? btn("startMic", ICO_MIC, "Microphone", isPhone ? "Hear the room or your speaker" : "Hear the room or the speakers") : "";
+    const note = !canComputer ? `<p style="margin:14px 0 0;font-size:12px">${isPhone ? "Phones can’t share other apps’ audio, so the microphone listens to the room or your speaker." : "This browser can’t share computer audio. Use Chrome or Edge for that, or the microphone."}</p>`
+      : `<p style="margin:14px 0 0;font-size:12px">For computer audio, pick a <strong>Chrome Tab</strong> or tick <strong>Share with system audio</strong>.</p>`;
+    return `<div class="empty"><h2>${canComputer ? "Translate whatever your PC is playing" : "Translate what you hear"}</h2><p>Words appear as they are spoken, each with its reading. Tap a word for its meaning.</p>
+      <div class="startrow">${pc}${mic}</div>${note}<p style="margin:10px 0 0;font-size:12px">Or type below to translate text.</p></div>`;
   }
   function render() {
     const near = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80, prevTop = feed.scrollTop;
@@ -420,7 +439,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
 
   /* ================= listening (audio capture + Whisper) ================= */
   const SR = 16000, MIN_SEG = 0.8, THRESH = 0.012;
-  let asr = null, asrP = null, asrKey = "", ctx = null, stream = null, node = null, listening = false, pending = 0;
+  let asr = null, asrDev = "", asrP = null, asrKey = "", ctx = null, stream = null, node = null, listening = false, pending = 0;
   let buf = [], bufLen = 0, speech = 0, silence = 0, queue = [], busyQ = false, secs = 0, tick = null;
 
   /* ---- one combined "getting ready" meter (dictionary, speech model, optional translation model) ---- */
@@ -440,7 +459,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
     if (asrP && asrKey === id) return asrP;
     asrKey = id; asr = null; prog.asr = 0;
     asrP = (async () => {
-      const dev = navigator.gpu ? "webgpu" : "wasm", mb = ASR_MB[S.model] * 1e6, got = {};
+      const dev = navigator.gpu ? "webgpu" : "wasm", mb = ASR_MB[S.model] * 1e6, got = {}; asrDev = dev === "webgpu" ? "GPU" : "CPU";
       model.loading = true; model.pct = 0; render();
       try {
         const { pipeline } = await tf();
@@ -464,14 +483,27 @@ textarea#txt{max-height:132px;overflow-y:auto}
   }
   const workletSrc = `class P extends AudioWorkletProcessor{process(i){const c=i[0];if(c&&c[0])this.port.postMessage(c[0].slice());return true}}registerProcessor('cap',P)`;
 
-  async function startListening() {
+  let wake = null, srcLabel = "";
+  async function keepAwake() { try { if (navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); } catch (_) {} }
+  document.addEventListener("visibilitychange", () => { if (listening && document.visibilityState === "visible") keepAwake(); });
+
+  async function startListening(source) {
+    source = source === "computer" || source === "mic" ? source : S.source;
+    if (source === "computer" && !canComputer) source = "mic";
+    S.source = source; save(); applySettings();
     $("#listen").disabled = true;
     try {
-      stream = await navigator.mediaDevices.getDisplayMedia({ video: true,
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-        systemAudio: "include", selfBrowserSurface: "exclude", preferCurrentTab: false, surfaceSwitching: "include", monitorTypeSurfaces: "include" });
-      if (!stream.getAudioTracks().length) { stream.getTracks().forEach(t => t.stop()); const err = new Error("No audio was shared. Pick a tab and tick “Share audio”."); err.noAudio = true; throw err; }
-      stream.getVideoTracks().forEach(t => t.stop());
+      if (source === "mic") {
+        stream = await md.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true, channelCount: 1 } });
+        srcLabel = "the microphone";
+      } else {
+        stream = await md.getDisplayMedia({ video: true,
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+          systemAudio: "include", selfBrowserSurface: "exclude", preferCurrentTab: false, surfaceSwitching: "include", monitorTypeSurfaces: "include" });
+        if (!stream.getAudioTracks().length) { stream.getTracks().forEach(t => t.stop()); const err = new Error("No audio was shared. Pick a Chrome Tab, or switch on “Share with system audio”. Or use the microphone."); err.noAudio = true; throw err; }
+        stream.getVideoTracks().forEach(t => t.stop());
+        srcLabel = "computer audio";
+      }
       // capture starts right away; lines queue up until the speech model is ready
       ctx = new AudioContext({ sampleRate: SR });
       await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([workletSrc], { type: "application/javascript" })));
@@ -480,12 +512,14 @@ textarea#txt{max-height:132px;overflow-y:auto}
       node.port.onmessage = e => onAudio(e.data);
       stream.getAudioTracks()[0].addEventListener("ended", stopListening);
       buf = []; bufLen = speech = silence = 0; secs = 0; sessionT0 = Date.now();
-      setListening(true);
+      keepAwake(); setListening(true);
       ensureAsr().catch(e => toast("Couldn’t load the speech model: " + e.message, { label: "Try again", fn: () => ensureAsr().catch(() => {}) }));
     } catch (e) {
       cleanup(); setListening(false);
-      if (e && e.name === "NotAllowedError") toast("Sharing was cancelled.", { label: "Try again", fn: startListening });
-      else if (e && e.noAudio) toast(e.message, { label: "Try again", fn: startListening });
+      const retry = { label: "Try again", fn: () => startListening(source) };
+      if (e && e.name === "NotAllowedError") toast(source === "mic" ? "Microphone access was blocked. Allow it in the address bar, then try again." : "Sharing was cancelled.", retry);
+      else if (e && e.noAudio) toast(e.message, canMic ? { label: "Use microphone", fn: () => startListening("mic") } : retry);
+      else if (e && e.name === "NotFoundError") toast("No microphone was found.");
       else toast(e.message || "Couldn’t start listening.");
     } finally { $("#listen").disabled = false; }
   }
@@ -499,6 +533,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   function cleanup() {
     try { node && node.disconnect(); } catch (_) {} try { ctx && ctx.close(); } catch (_) {}
     if (stream) stream.getTracks().forEach(t => t.stop()); node = ctx = stream = null;
+    try { wake && wake.release(); } catch (_) {} wake = null;
   }
   function stopListening() {
     if (listening && bufLen / SR >= MIN_SEG && speech >= MIN_SEG) flush();
@@ -533,7 +568,10 @@ textarea#txt{max-height:132px;overflow-y:auto}
       try {
         await ensureAsr();
         const o = { chunk_length_s: 30, task: "transcribe", language: S.lang };
+        const t0 = performance.now();
         const r = await asr(audio, o), text = (r.text || "").trim();
+        const took = (performance.now() - t0) / 1000;
+        $("#perf").textContent = `${audio.length / SR < 10 ? (audio.length / SR).toFixed(1) : Math.round(audio.length / SR)} s of audio took ${took.toFixed(1)} s · ${asrDev}`;
         if (text && !HALLU.test(text)) {
           if (S.auto) await translate(text, meta); else addReadingLine(text, meta);
         }
@@ -654,7 +692,8 @@ textarea#txt{max-height:132px;overflow-y:auto}
         if (a.dataset.act === "cj") copyText(jaOf(it)); else if (a.dataset.act === "ce") copyText(enOf(it)); else { items = items.filter(x => x !== it); render(); } };
       return;
     }
-    if (e.target.closest("#startBig")) { $("#listen").click(); return; }
+    if (e.target.closest("#startComputer")) { startListening("computer"); return; }
+    if (e.target.closest("#startMic")) { startListening("mic"); return; }
     const nb = e.target.closest("[data-nat]");
     if (nb) { const it = byId(nb.dataset.nat); it.natWanted = true; natFor(it); render(); return; }
     const tr = e.target.closest("[data-trans]");
@@ -688,7 +727,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   if (FRESH) $("#freshNote").textContent = "Testing mode: settings and downloads are not kept between visits. Add ?keep to the address to keep them.";
   else $("#freshNote").textContent = "Settings are remembered on this device.";
   applySettings(); render(); preload();
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) { $("#listen").disabled = true; $("#listen").title = "This browser can’t capture PC audio. Use desktop Chrome or Edge."; setStatus("Listening needs desktop Chrome or Edge.", true); }
+  if (!canComputer && !canMic) { $("#listen").disabled = true; setStatus("This browser can’t listen to audio. Try Chrome, Edge, Safari or Firefox over HTTPS.", true); }
   window.WordhueTest = { voiceFeatures, guessSpeaker, reset() { spkC = []; lastSpk = 0; }, items: () => items, translate, addReadingLine, prog };
 })();
 
