@@ -78,6 +78,20 @@ details summary{cursor:pointer}
 footer{color:var(--text-dim2);font-size:11px;margin-top:22px;line-height:1.6}
 footer a{color:var(--accent)}
 @media (max-width:600px){.row .lbl{width:100%}.row.ja{font-size:19px}}
+
+/* ---- live transcription ---- */
+.tx-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tx-head h2{font-size:14px;margin:0;font-weight:600}
+.tx-head select{background:var(--bg-elev);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 8px;font:inherit}
+.tx-note{color:var(--text-dim2);font-size:12px;margin:8px 0 0;line-height:1.5}
+.meter{height:4px;border-radius:2px;background:var(--bg-elev2);margin-top:10px;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--particle),var(--warn),var(--verb));transition:width .08s}
+#txLog{margin-top:10px;max-height:260px;overflow:auto;display:flex;flex-direction:column;gap:6px}
+.tx-line{display:flex;gap:8px;align-items:flex-start;background:var(--bg-elev);border:1px solid var(--border);border-radius:6px;padding:8px 10px}
+.tx-line .t{flex:1;font-size:16px;line-height:1.5}
+.tx-line .ts{font-family:var(--mono);font-size:11px;color:var(--text-dim2);padding-top:4px}
+.tx-line button{padding:3px 9px;font-size:12px}
+.tx-line.pending .t{color:var(--text-dim2);font-style:italic}
 </style>
 </head>
 <body>
@@ -105,6 +119,34 @@ footer a{color:var(--accent)}
       <button class="tog on" id="tLit">Literal</button>
     </div>
     <div class="bar" id="examples"></div>
+  </div>
+
+  <div class="panel" id="txPanel">
+    <div class="tx-head">
+      <h2>🎧 Live transcription <span style="color:var(--text-dim2);font-weight:400">· from this PC's audio</span></h2>
+      <span class="spacer"></span>
+      <select id="txLang" title="Spoken language">
+        <option value="japanese" selected>日本語</option>
+        <option value="english">English</option>
+        <option value="auto">Auto-detect</option>
+      </select>
+      <select id="txModel" title="Whisper model (bigger = more accurate, slower, larger download)">
+        <option value="onnx-community/whisper-tiny">tiny (~40 MB)</option>
+        <option value="onnx-community/whisper-base" selected>base (~80 MB)</option>
+        <option value="onnx-community/whisper-small">small (~250 MB)</option>
+      </select>
+      <button class="primary" id="txStart">Start capture</button>
+      <button id="txStop" disabled>Stop</button>
+    </div>
+    <div class="bar" style="margin-top:8px">
+      <label class="status"><input type="checkbox" id="txAuto"> send each line to Wordhue automatically</label>
+      <span class="spacer"></span>
+      <span class="status" id="txStatus">idle</span>
+    </div>
+    <div class="meter"><i id="txMeter"></i></div>
+    <div id="txLog"></div>
+    <p class="tx-note">Click <b>Start capture</b>, pick a screen or tab, and tick <b>“Share system audio”</b> (Chrome/Edge on Windows; on Mac only tab audio is shared).
+      Speech is recognised <b>on your device</b> with Whisper — nothing is uploaded. The model downloads once (cached afterwards).</p>
   </div>
 
   <div class="legend" id="legend"></div>
@@ -224,6 +266,130 @@ document.addEventListener("click", async e => {
   catch (_) { const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); }
   const old = b.textContent; b.textContent = "Copied ✓"; setTimeout(() => b.textContent = old, 1200);
 });
+
+/* ================= Live transcription (Whisper in the browser) ================= */
+(() => {
+  const TF_URL = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2";
+  const SR = 16000, MAX_SEG = 15, MIN_SEG = 0.8, SIL_END = 0.7, THRESH = 0.012;
+  const $t = id => document.getElementById(id);
+  const st = (m, c="") => { const e=$t("txStatus"); e.textContent=m; e.className="status "+c; };
+  let asr = null, asrKey = "", ctx = null, stream = null, node = null, running = false;
+  let buf = [], bufLen = 0, speech = 0, silence = 0, queue = [], busy = false, t0 = 0;
+
+  async function loadModel() {
+    const id = $t("txModel").value, dev = navigator.gpu ? "webgpu" : "wasm";
+    if (asr && asrKey === id) return;
+    st(`loading ${id.split("/")[1]} (${dev})… first time downloads the model`, "warn");
+    const { pipeline } = await import(TF_URL);
+    const opts = { device: dev, progress_callback: p => {
+      if (p.status === "progress" && p.total) st(`downloading ${p.file.split("/").pop()} ${Math.round(p.loaded/p.total*100)}%`, "warn"); } };
+    if (dev === "webgpu") opts.dtype = { encoder_model: "fp32", decoder_model_merged: "q4" };
+    asr = await pipeline("automatic-speech-recognition", id, opts);
+    asrKey = id;
+  }
+
+  const workletSrc = `class P extends AudioWorkletProcessor{process(i){const c=i[0];if(c&&c[0])this.port.postMessage(c[0].slice());return true}}registerProcessor('cap',P)`;
+
+  async function start() {
+    try {
+      $t("txStart").disabled = true;
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
+      if (!stream.getAudioTracks().length) {
+        stream.getTracks().forEach(t => t.stop());
+        throw new Error('No audio shared — tick "Share system audio" (or share a tab) in the picker.');
+      }
+      stream.getVideoTracks().forEach(t => t.stop());
+      await loadModel();
+      ctx = new AudioContext({ sampleRate: SR });
+      const url = URL.createObjectURL(new Blob([workletSrc], { type: "application/javascript" }));
+      await ctx.audioWorklet.addModule(url);
+      node = new AudioWorkletNode(ctx, "cap");
+      const src = ctx.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
+      src.connect(node);                       // not connected to destination: no echo
+      node.port.onmessage = e => onAudio(e.data);
+      stream.getAudioTracks()[0].addEventListener("ended", stop);
+      running = true; t0 = Date.now(); buf = []; bufLen = speech = silence = 0;
+      $t("txStop").disabled = false;
+      st("listening…", "ok");
+    } catch (e) {
+      st("Error: " + (e.message || e.name), "err");
+      cleanup(); $t("txStart").disabled = false;
+    }
+  }
+
+  function onAudio(chunk) {
+    let sum = 0; for (let i = 0; i < chunk.length; i++) sum += chunk[i]*chunk[i];
+    const rms = Math.sqrt(sum / chunk.length);
+    $t("txMeter").style.width = Math.min(100, rms * 600) + "%";
+    const dur = chunk.length / SR, voiced = rms > THRESH;
+    if (voiced) { speech += dur; silence = 0; } else silence += dur;
+    if (speech === 0) return;                 // still waiting for speech to begin
+    buf.push(chunk); bufLen += chunk.length;
+    const len = bufLen / SR;
+    if ((silence >= SIL_END && speech >= MIN_SEG) || len >= MAX_SEG) flush();
+    else if (silence >= SIL_END) { buf = []; bufLen = speech = silence = 0; }
+  }
+
+  function flush() {
+    const out = new Float32Array(bufLen); let o = 0;
+    for (const c of buf) { out.set(c, o); o += c.length; }
+    buf = []; bufLen = speech = silence = 0;
+    const row = addLine("…", true);
+    queue.push({ audio: out, row }); drain();
+  }
+
+  async function drain() {
+    if (busy) return; busy = true;
+    while (queue.length) {
+      const { audio, row } = queue.shift();
+      try {
+        const lang = $t("txLang").value;
+        const o = { chunk_length_s: 30, task: "transcribe" };
+        if (lang !== "auto") o.language = lang;
+        const r = await asr(audio, o);
+        const text = (r.text || "").trim();
+        if (!text || HALLU.test(text)) row.remove();
+        else { row.classList.remove("pending"); row.querySelector(".t").textContent = text; if ($t("txAuto").checked) send(text); }
+      } catch (e) { row.querySelector(".t").textContent = "(failed: " + e.message + ")"; }
+    }
+    busy = false;
+  }
+  // Whisper tends to invent these on near-silence
+  const HALLU = /^(ご視聴ありがとうございました。?|ありがとうございました。?|thank(s| you) for watching[.!]?|you|\.+)$/i;
+
+  function addLine(text, pending) {
+    const log = $t("txLog"), row = document.createElement("div");
+    row.className = "tx-line" + (pending ? " pending" : "");
+    const s = Math.floor((Date.now() - t0) / 1000), ts = String(Math.floor(s/60)).padStart(2,"0") + ":" + String(s%60).padStart(2,"0");
+    row.innerHTML = '<span class="ts">' + ts + '</span><span class="t"></span><button data-copy="">Copy</button><button class="tx-send">→ Wordhue</button>';
+    row.querySelector(".t").textContent = text;
+    row.querySelector(".tx-send").onclick = () => send(row.querySelector(".t").textContent);
+    row.querySelector("[data-copy]").addEventListener("click", () => { row.querySelector("[data-copy]").dataset.copy = row.querySelector(".t").textContent; }, true);
+    log.appendChild(row); log.scrollTop = log.scrollHeight;
+    return row;
+  }
+
+  function send(text) { $("#input").value = text; run(); }
+
+  function cleanup() {
+    running = false;
+    try { node && node.disconnect(); } catch (_) {}
+    try { ctx && ctx.close(); } catch (_) {}
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    node = ctx = stream = null; $t("txMeter").style.width = "0";
+  }
+  function stop() {
+    if (running && bufLen / SR >= MIN_SEG && speech >= MIN_SEG) flush();
+    cleanup(); $t("txStart").disabled = false; $t("txStop").disabled = true;
+    st(busy || queue.length ? "stopped — finishing last lines…" : "stopped");
+  }
+
+  $t("txStart").onclick = start;
+  $t("txStop").onclick = stop;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+    $t("txStart").disabled = true; st("This browser can't capture PC audio — use desktop Chrome or Edge.", "err");
+  }
+})();
 
 run();
 </script>
