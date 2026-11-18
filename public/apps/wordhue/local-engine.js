@@ -382,7 +382,7 @@
   }
 
   window.WordhueLocal = {
-    ja2en, en2ja, romaji, furi, context, resetContext, snapshot, restore, readings, meaning, warmTok: () => getTok(),
+    ja2en, en2ja, romaji, furi, context, resetContext, snapshot, restore, readings, meaning, warmTok: () => getTok(), warmDict: () => getJa(),
     detect: t => (KANJI.test(t) || KANA.test(t)) ? "ja" : "en",
     warm: () => Promise.all([getTok(), getJa()])
   };
