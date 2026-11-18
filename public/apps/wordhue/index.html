@@ -182,6 +182,9 @@ textarea#txt{max-height:132px;overflow-y:auto}
 .seg button{padding:5px 11px;border-radius:6px;font-size:12px;color:var(--dim)}
 .seg button[aria-pressed="true"]{background:var(--panel);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.25)}
 .set.credits{display:block}
+.line.pending{border-style:dashed;opacity:.8}
+.gist + .untrans{margin-top:8px;justify-content:flex-end}
+.line .untrans{flex-wrap:wrap}
 .empty{max-width:520px}
 .startrow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
 .startopt{display:flex;align-items:center;gap:12px;text-align:left;padding:12px 18px;border-radius:14px;background:var(--panel);border:1px solid var(--line);min-width:210px}
@@ -328,19 +331,27 @@ textarea#txt{max-height:132px;overflow-y:auto}
   }
   function metaHtml(item) {
     const m = item.meta || {};
-    return `<div class="meta">${m.speaker ? `<button class="spk ${m.speaker}" data-spk="${item.id}" title="Change speaker">${esc(m.speaker)}</button>` : ""}${m.dur ? `<span class="dur">${m.dur.toFixed(1)} s</span>` : ""}<span>${esc(m.t || "")}</span><button class="more" data-more="${item.id}" aria-label="Line options">⋯</button></div>`;
+    return `<div class="meta">${m.speaker ? `<button class="spk ${m.speaker}" data-spk="${item.id}" title="Change speaker">${esc(m.speaker)}</button>` : ""}${m.dur ? `<span class="dur">${m.dur.toFixed(1)} s</span>` : ""}<span>${esc(m.t || "")}</span>${item.kind === "pending" ? "" : `<button class="more" data-more="${item.id}" aria-label="Line options">⋯</button>`}</div>`;
   }
-  function natHtml(item) {
-    if (item.kind !== "ja") return "";
-    const v = item.nat;
-    if (!S.nat && !item.natWanted) return v === undefined ? `<div class="untrans"><button data-nat="${item.id}">Natural translation</button></div>` : "";
-    if (v === null) return "";
+  const isJaLine = it => it.kind === "ja" || (it.kind === "text" && L.detect(it.raw) === "ja");
+  function natGist(item) {
+    const v = item.nat; if (v === null) return "";
     return `<div class="gist forced"><small>Natural translation</small>${v === undefined ? `<span class="nat-wait">${esc(nat.status || "translating…")}</span>` : `<span>${esc(v)}</span>`}</div>`;
   }
+  function natHtml(item) {                         // translated lines (word-for-word shown)
+    if (item.kind !== "ja") return "";
+    if (!S.nat && !item.natWanted) return item.nat === undefined ? `<div class="untrans"><button data-nat="${item.id}">Natural translation</button></div>` : "";
+    return natGist(item);
+  }
   function itemHtml(item) {
+    if (item.kind === "pending")
+      return `<article class="line pending" data-id="${item.id}">${metaHtml(item)}<div class="untrans"><span class="nat-wait">transcribing…</span></div></article>`;
     if (item.kind === "text") {
       const toks = item.rd ? item.rd.map((t, i) => tokRd(item, i)).join("") : "";
-      return `<article class="line" data-id="${item.id}">${metaHtml(item)}${toks ? `<div class="inter">${toks}</div>` : `<div class="untrans"><span>${esc(item.raw)}</span></div>`}<div class="untrans"><button data-trans="${item.id}">Translate</button></div></article>`;
+      const ja = isJaLine(item), want = S.nat || item.natWanted;
+      const natBtn = ja && !want && item.nat === undefined ? `<button data-nat="${item.id}">Natural translation</button>` : "";
+      const gist = ja && want ? natGist(item) : "";
+      return `<article class="line" data-id="${item.id}">${metaHtml(item)}${toks ? `<div class="inter">${toks}</div>` : `<div class="untrans"><span>${esc(item.raw)}</span></div>`}${gist}<div class="untrans">${natBtn}<button data-trans="${item.id}">Translate</button></div></article>`;
     }
     const s = item.s, n = item.kind === "en" ? s.src.length : s.tokens.length;
     let toks = ""; for (let i = 0; i < n; i++) toks += item.kind === "en" ? tokEn(item, i) : tokJa(item, i);
@@ -349,7 +360,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   }
   function liveHtml() {
     if (listening && model.loading) return `<div class="live"><span class="pulse"></span><span>Getting the speech model ready. Listening already; lines appear when it is done.</span><span class="livebar"><i style="width:${model.pct}%"></i></span><span>${model.pct}%</span></div>`;
-    if (listening) return `<div class="live"><span class="pulse"></span><span>${pending > 0 ? "transcribing…" : "listening to " + srcLabel + "…"}</span></div>`;
+    if (listening) return `<div class="live"><span class="pulse"></span><span>${pending > 0 ? "transcribing · " + (behindSec() > 2 ? behindSec() + " s behind" : "keeping up") : "listening to " + srcLabel + "…"}</span></div>`;
     if (items.length) return `<div class="live idle"><span class="pulse"></span><span>Paused. Press Listen to continue this conversation.</span></div>`;
     return "";
   }
@@ -382,22 +393,25 @@ textarea#txt{max-height:132px;overflow-y:auto}
     b.hidden = !(away || unseen > 0) || !items.length;
     b.textContent = unseen > 0 ? "↓ " + unseen + " new line" + (unseen > 1 ? "s" : "") : "↓ Jump to latest";
   }
-  function addItems(list) {
-    list.forEach(x => { x.id = nextId++; items.push(x); });
-    newLines += list.length; if (scrollOnNext) { forceScroll = true; scrollOnNext = false; }
+  function addItems(list, at, carry) {
+    list.forEach(x => { x.id = nextId++; if (carry) { if (carry.natWanted) x.natWanted = true; if (carry.nat !== undefined && list.length === 1) x.nat = carry.nat; } });
+    const i = at ? items.indexOf(at) : -1;
+    if (i >= 0) items.splice(i, 1, ...list); else items.push(...list);
+    newLines += Math.max(0, list.length - (i >= 0 ? 1 : 0)); if (scrollOnNext) { forceScroll = true; scrollOnNext = false; }
     render(); list.forEach(natFor);
   }
+  function dropItem(it) { items = items.filter(x => x !== it); render(); }
   function setStatus(msg, err) { const el = $("#status"); el.textContent = msg || ""; el.className = "status" + (err ? " err" : ""); }
 
   /* ================= translating ================= */
   const nowStamp = () => { const s = Math.floor((Date.now() - sessionT0) / 1000); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
   let sessionT0 = Date.now();
-  async function translate(text, meta) {
+  async function translate(text, meta, at, carry) {
     const dir = meta && meta.heard ? (S.lang === "english" ? "en" : "ja") : S.dir;
     const busy = m => setStatus(m);
     try {
-      if (dir === "en") { const r = await L.en2ja(text, busy); addItems(r.sentences.map(s => ({ kind: "en", s, meta: meta ? { ...meta } : null }))); }
-      else { const r = await L.ja2en(text, busy); addItems(r.sentences.map(s => ({ kind: "ja", s, meta: meta ? { ...meta } : null }))); }
+      if (dir === "en") { const r = await L.en2ja(text, busy); addItems(r.sentences.map(s => ({ kind: "en", s, meta: meta ? { ...meta } : null })), at, carry); }
+      else { const r = await L.ja2en(text, busy); addItems(r.sentences.map(s => ({ kind: "ja", s, meta: meta ? { ...meta } : null })), at, carry); }
       setStatus("");
     } catch (e) { setStatus("Couldn’t load the dictionary: " + e.message, true); toast("Dictionary failed to load. Check your connection and try again."); }
   }
@@ -414,10 +428,11 @@ textarea#txt{max-height:132px;overflow-y:auto}
     return nat.p;
   }
   function natFor(item) {
-    if (!(S.nat || item.natWanted) || item.kind !== "ja" || item.nat !== undefined || item.natBusy) return;
+    if (!(S.nat || item.natWanted) || !isJaLine(item) || item.nat !== undefined || item.natBusy) return;
     item.natBusy = true;
-    const text = item.s.tokens.map(t => t.text).join("");
+    const text = item.kind === "ja" ? item.s.tokens.map(t => t.text).join("") : item.raw;
     nat.chain = nat.chain.then(async () => {
+      while (busyQ || queue.length) await new Promise(r => setTimeout(r, 250));      // transcription has priority
       try {
         const pipe = await natPipe();
         const out = await pipe(text, { max_new_tokens: 200 });
@@ -430,9 +445,9 @@ textarea#txt{max-height:132px;overflow-y:auto}
   }
 
   // heard line without translation: show it immediately, then add kana + romaji (a few ms once the tokenizer is ready)
-  function addReadingLine(text, meta) {
+  function addReadingLine(text, meta, at, carry) {
     const item = { kind: "text", raw: text, meta };
-    addItems([item]);
+    addItems([item], at, carry);
     if (L.detect(text) !== "ja") return;
     L.readings(text).then(rd => { item.rd = rd; render(); }).catch(() => {});
   }
@@ -484,6 +499,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   const workletSrc = `class P extends AudioWorkletProcessor{process(i){const c=i[0];if(c&&c[0])this.port.postMessage(c[0].slice());return true}}registerProcessor('cap',P)`;
 
   let wake = null, srcLabel = "";
+  const resetBehind = () => { behindStreak = 0; suggested = false; };
   async function keepAwake() { try { if (navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); } catch (_) {} }
   document.addEventListener("visibilitychange", () => { if (listening && document.visibilityState === "visible") keepAwake(); });
 
@@ -512,7 +528,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
       node.port.onmessage = e => onAudio(e.data);
       stream.getAudioTracks()[0].addEventListener("ended", stopListening);
       buf = []; bufLen = speech = silence = 0; secs = 0; sessionT0 = Date.now();
-      keepAwake(); setListening(true);
+      keepAwake(); resetBehind(); setListening(true);
       ensureAsr().catch(e => toast("Couldn’t load the speech model: " + e.message, { label: "Try again", fn: () => ensureAsr().catch(() => {}) }));
     } catch (e) {
       cleanup(); setListening(false);
@@ -557,26 +573,43 @@ textarea#txt{max-height:132px;overflow-y:auto}
     const out = new Float32Array(bufLen); let o = 0; for (const c of buf) { out.set(c, o); o += c.length; }
     const dur = Math.max(0.1, bufLen / SR - silence), stamp = nowStamp();
     buf = []; bufLen = speech = silence = 0;
-    const speaker = S.spk ? guessSpeaker(out) : undefined;
-    queue.push({ audio: out, meta: { speaker, dur, t: stamp, heard: true } }); pending++; render(); drain();
+    const speaker = S.spk ? guessSpeaker(out) : undefined, meta = { speaker, dur, t: stamp, heard: true };
+    const item = { kind: "pending", meta };
+    addItems([item]);                                   // the line shows up now, text follows
+    queue.push({ audio: out, meta, item }); pending++; drain();
   }
   const HALLU = /^(ご視聴ありがとうございました。?|ありがとうございました。?|thank(s| you) for watching[.!]?|you|\.+)$/i;
+  let epoch = 0, inflight = 0, behindStreak = 0, suggested = false;
+  const behindSec = () => Math.round(inflight + queue.reduce((x, q) => x + q.meta.dur, 0));
+  function suggestFaster() {
+    if (suggested || S.model === "fast") return; suggested = true;
+    const next = S.model === "accurate" ? "balanced" : "fast";
+    toast("Transcription is falling behind the conversation.", { label: next === "balanced" ? "Use Balanced" : "Use Fast", fn: () => { S.model = next; save(); applySettings(); ensureAsr().catch(() => {}); suggested = false; behindStreak = 0; } });
+  }
   async function drain() {
     if (busyQ) return; busyQ = true;
     while (queue.length) {
-      const { audio, meta } = queue.shift();
+      // catch up: if lines are piling up, transcribe the waiting ones together in a single pass
+      const batch = [queue.shift()]; let total = batch[0].meta.dur;
+      while (queue.length >= 2 && total + queue[0].meta.dur <= 25) { const q = queue.shift(); batch.push(q); total += q.meta.dur; }
+      const audio = batch.length === 1 ? batch[0].audio : (() => { const n = batch.reduce((x, q) => x + q.audio.length, 0), a = new Float32Array(n); let o = 0; batch.forEach(q => { a.set(q.audio, o); o += q.audio.length; }); return a; })();
+      const meta = { ...batch[0].meta, dur: total }, first = batch[0].item, myEpoch = epoch;
+      inflight = total; render();
       try {
         await ensureAsr();
-        const o = { chunk_length_s: 30, task: "transcribe", language: S.lang };
         const t0 = performance.now();
-        const r = await asr(audio, o), text = (r.text || "").trim();
-        const took = (performance.now() - t0) / 1000;
-        $("#perf").textContent = `${audio.length / SR < 10 ? (audio.length / SR).toFixed(1) : Math.round(audio.length / SR)} s of audio took ${took.toFixed(1)} s · ${asrDev}`;
-        if (text && !HALLU.test(text)) {
-          if (S.auto) await translate(text, meta); else addReadingLine(text, meta);
+        const r = await asr(audio, { chunk_length_s: 30, task: "transcribe", language: S.lang, max_new_tokens: Math.min(220, Math.ceil(total * 14) + 12) });
+        const text = (r.text || "").trim(), took = (performance.now() - t0) / 1000;
+        $("#perf").textContent = `${total.toFixed(1)} s of audio took ${took.toFixed(1)} s · ${asrDev}${batch.length > 1 ? " · caught up " + batch.length + " lines" : ""}`;
+        if (epoch === myEpoch) {
+          batch.slice(1).forEach(q => { items = items.filter(x => x !== q.item); });
+          if (text && !HALLU.test(text)) { if (S.auto) await translate(text, meta, first); else addReadingLine(text, meta, first); }
+          else dropItem(first);
         }
-      } catch (e) { toast("Couldn’t transcribe a line: " + e.message); }
-      pending = Math.max(0, pending - 1); render();
+      } catch (e) { batch.forEach(q => { items = items.filter(x => x !== q.item); }); render(); toast("Couldn’t transcribe a line: " + e.message); }
+      pending = Math.max(0, pending - batch.length); inflight = 0;
+      behindStreak = queue.length >= 2 ? behindStreak + 1 : 0; if (behindStreak >= 2) suggestFaster();
+      render();
     }
     busyQ = false;
   }
@@ -647,7 +680,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   $("#listen").onclick = () => listening ? stopListening() : startListening();
   $("#newchat").onclick = () => {
     if (!items.length) return;
-    const old = items, snap = L.snapshot(); items = []; L.resetContext(); queue.length = 0; spkC = []; lastSpk = 0; render();
+    const old = items, snap = L.snapshot(); items = []; L.resetContext(); queue.length = 0; epoch++; pending = 0; spkC = []; lastSpk = 0; render();
     toast("Conversation cleared. Topic forgotten.", () => { items = old; L.restore(snap); render(); });
   };
   const drawer = o => { $("#drawer").classList.toggle("open", o); $("#scrim").classList.toggle("open", o); };
@@ -697,7 +730,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
     const nb = e.target.closest("[data-nat]");
     if (nb) { const it = byId(nb.dataset.nat); it.natWanted = true; natFor(it); render(); return; }
     const tr = e.target.closest("[data-trans]");
-    if (tr) { const it = byId(tr.dataset.trans); items = items.filter(x => x !== it); render(); translate(it.raw, it.meta); return; }
+    if (tr) { const it = byId(tr.dataset.trans); translate(it.raw, it.meta, it, { natWanted: it.natWanted, nat: it.nat }); return; }
     const opt = e.target.closest(".pop button");
     if (opt) { const it = byId(opt.dataset.it), i = +opt.dataset.ti, k = +opt.dataset.k;
       if (it.kind === "ja") { const g = it.s.alts[i][k]; it.s.literal[i].text = g; const en = it.s.english.find(x => x.ids.length === 1 && x.ids[0] === i); if (en) en.text = g; }
@@ -728,7 +761,9 @@ textarea#txt{max-height:132px;overflow-y:auto}
   else $("#freshNote").textContent = "Settings are remembered on this device.";
   applySettings(); render(); preload();
   if (!canComputer && !canMic) { $("#listen").disabled = true; setStatus("This browser can’t listen to audio. Try Chrome, Edge, Safari or Firefox over HTTPS.", true); }
-  window.WordhueTest = { voiceFeatures, guessSpeaker, reset() { spkC = []; lastSpk = 0; }, items: () => items, translate, addReadingLine, prog };
+  window.WordhueTest = { voiceFeatures, guessSpeaker, reset() { spkC = []; lastSpk = 0; }, items: () => items, translate, addReadingLine, prog,
+    setAsr(fn) { asr = fn; asrKey = WHISPER[S.model]; asrP = Promise.resolve(fn); asrDev = "GPU"; },
+    fakeSegment(sec) { const a = new Float32Array(Math.round(sec * SR)); buf = [a]; bufLen = a.length; speech = sec; silence = 0; flush(); } };
 })();
 
 </script>
