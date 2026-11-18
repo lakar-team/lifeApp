@@ -286,6 +286,8 @@
     return { sentences: conv.sents.length, words: [...w.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(x => x[0]), fields: [...f.keys()] };
   };
   const resetContext = () => { conv.sents.length = 0; };
+  const snapshot = () => conv.sents.map(x => ({ words: x.words.slice(), fields: x.fields.slice() }));
+  const restore = snap => { conv.sents.length = 0; (snap || []).forEach(x => conv.sents.push(x)); };
 
   /* ================= English → Japanese ================= */
   const EN_FIX = {i:["私","わたし"],me:["私","わたし"],my:["私の","わたしの"],you:["あなた","あなた"],your:["あなたの","あなたの"],he:["彼","かれ"],him:["彼","かれ"],his:["彼の","かれの"],
@@ -349,7 +351,7 @@
   }
 
   window.WordhueLocal = {
-    ja2en, en2ja, romaji, furi, context, resetContext,
+    ja2en, en2ja, romaji, furi, context, resetContext, snapshot, restore,
     detect: t => (KANJI.test(t) || KANA.test(t)) ? "ja" : "en",
     warm: () => Promise.all([getTok(), getJa()])
   };
