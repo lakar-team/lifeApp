@@ -109,9 +109,12 @@ footer a{color:var(--accent)}
     Faded italic words don't exist in the Japanese; they were added so the English reads naturally.</p>
 
   <div class="panel">
-    <textarea id="input" placeholder="日本語を入力… e.g. 桃太郎は鬼ヶ島へ行きました。">桃太郎は鬼ヶ島へ行きました。</textarea>
+    <textarea id="input" placeholder="日本語 or English… e.g. 桃太郎は鬼ヶ島へ行きました。 / The old woman washed clothes at the river.">桃太郎は鬼ヶ島へ行きました。</textarea>
     <div class="bar">
       <button class="primary" id="go">Translate</button>
+      <select id="dir" title="Translation direction" style="background:var(--bg-elev);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 8px;font:inherit">
+        <option value="auto" selected>Auto-detect</option><option value="ja">日本語 → English</option><option value="en">English → 日本語</option>
+      </select>
       <span class="status" id="status"></span>
       <span class="spacer"></span>
       <button class="tog on" id="tFuri">Furigana</button>
@@ -153,12 +156,13 @@ footer a{color:var(--accent)}
   <div id="out"></div>
 
   <footer>
-    Rule-based pipeline: GiNZA/SudachiPy parse → JMdict gloss → recursive clause reordering. No generative AI writes the English.<br>
+    Word-for-word, in your browser: kuromoji tokeniser → JMdict gloss, kept in source word order. No AI, no server, nothing leaves your device.<br>
     Dictionary: <a href="https://www.edrdg.org/edrdg/licence.html" target="_blank" rel="noopener">JMdict</a> © Electronic Dictionary Research and Development Group, CC BY-SA 4.0 ·
-    Parser: GiNZA (MIT) · Beta: complex sentences may be rearranged imperfectly — check the confidence badge.
+    Tokenizer: kuromoji.js (Apache-2.0) with mecab-ipadic · Beta: glosses are literal and show the most common meaning — hover is word-linked, not grammar-corrected.
   </footer>
 </main>
 
+<script src="local-engine.js"></script>
 <script>
 // Backend URL. Override once with ?api=https://your-service  (remembered in this browser).
 const DEFAULT_API = "";
@@ -201,6 +205,29 @@ function romaRow(s){
 }
 const joinEn = (s) => s.english.map(p=>p.text).join(" ").replace(/ ([.,?!”])/g,"$1").replace(/“ /g,"“");
 
+function renderEn(result){
+  lastResult = result;
+  $("#out").innerHTML = result.sentences.map(s => {
+    const c = s.confidence, bc = c>=.85?"b-hi":c>=.6?"b-mid":"b-lo";
+    const jaTxt = s.jp.map(t=>t.text).join("").replace(/ /g,"");
+    const rm = s.jp.map(t=>t.romaji).join(" ").replace(/ ([.,?!])/g,"$1");
+    const en = s.src.map(t=>t.text).join(" ").replace(/ ([.,?!])/g,"$1");
+    const jaSpan = t => {
+      const inner = (t.furi||[[t.text,null]]).map(([txt, ruby]) => showFuri && ruby ? `<ruby>${esc(txt)}<rt data-rt="${esc(ruby)}"></rt></ruby>` : esc(txt)).join("");
+      const alt = t.alts && t.alts.length ? ` title="also: ${esc(t.alts.map(a=>a[0]).join("、 "))}"` : "";
+      return `<span class="w c-${t.cls}" data-ids="${t.id}"${alt}>${inner}</span>`;
+    };
+    return `<div class="card">
+      <div class="row en"><span class="lbl">English</span>${s.src.map(t=>`<span class="w c-${t.cls}" data-ids="${t.id}">${esc(t.text)}</span>`).join("")}</div>
+      <div class="row ja"><span class="lbl">日本語 </span>${s.jp.map(jaSpan).join("")}</div>
+      <div class="row roma"><span class="lbl">romaji</span>${s.jp.map(t=>`<span class="w c-${t.cls}" data-ids="${t.id}">${esc(t.romaji)}</span>`).join(" ")}</div>
+      <div class="meta"><span class="badge ${bc}">coverage ${c.toFixed(2)}</span>
+        ${s.warnings.length?`<details><summary>${s.warnings.length} note(s)</summary>${s.warnings.map(esc).join("<br>")}</details>`:""}
+        <span class="copy"><button data-copy="${esc(en)}">Copy English</button><button data-copy="${esc(jaTxt)}">Copy 日本語</button><button data-copy="${esc(rm)}">Copy romaji</button></span>
+      </div></div>`;
+  }).join("");
+}
+
 function render(result){
   lastResult = result;
   $("#out").innerHTML = result.sentences.map(s => {
@@ -221,34 +248,43 @@ function render(result){
 
 function setStatus(msg, cls=""){ const el=$("#status"); el.textContent=msg; el.className="status "+cls; }
 
-async function run(){
+async function run(auto){
   const text = $("#input").value.trim();
   if (!text) return;
+  const L = window.WordhueLocal;
+  // first paint: show the built-in preview instantly without downloading any dictionary
+  if (auto === true && PREVIEW[text]) { render(PREVIEW[text]); setStatus("preview — press Translate to use the live dictionary", "warn"); return; }
   $("#go").disabled = true;
-  if (!API || API.includes("__")) {
-    const hit = PREVIEW[text];
-    if (hit) { render(hit); setStatus("preview (live engine not connected yet)", "warn"); }
-    else setStatus("Live engine not connected yet — try one of the example sentences.", "warn");
-    $("#go").disabled = false; return;
-  }
-  setStatus("translating… (first request after idle can take ~20s while the server wakes)");
-  const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 60000);
+  let dir = $("#dir").value; if (dir === "auto") dir = L.detect(text);
   try {
-    const r = await fetch(API + "/analyze", {method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({text}), signal: ctl.signal});
-    if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || r.statusText);
-    const data = await r.json();
-    render(data); setStatus(`done · ${data.ms} ms`, "ok");
+    if (dir === "en") {
+      const r = await L.en2ja(text, m => setStatus(m, "warn"));
+      renderEn(r); setStatus(`word-for-word English → 日本語 · ${r.ms} ms`, "ok");
+    } else if (API && !API.includes("__")) {
+      // optional full-grammar server, if one is configured; falls back to the local dictionary
+      try {
+        setStatus("translating… (first request after idle can take ~20s while the server wakes)");
+        const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 30000);
+        const r = await fetch(API + "/analyze", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text}), signal: ctl.signal});
+        clearTimeout(timer); if (!r.ok) throw new Error(r.statusText);
+        const data = await r.json(); render(data); setStatus(`done · ${data.ms} ms`, "ok");
+      } catch (_) {
+        const r = await L.ja2en(text, m => setStatus(m, "warn")); render(r); setStatus(`server unreachable — local word-for-word · ${r.ms} ms`, "warn");
+      }
+    } else {
+      const r = await L.ja2en(text, m => setStatus(m, "warn"));
+      render(r); setStatus(`word-for-word 日本語 → English · ${r.ms} ms`, "ok");
+    }
   } catch (e) {
     const hit = PREVIEW[text];
-    if (hit) { render(hit); setStatus("server unreachable — showing saved preview", "warn"); }
-    else setStatus("Error: " + (e.name === "AbortError" ? "timed out" : e.message), "err");
-  } finally { clearTimeout(timer); $("#go").disabled = false; }
+    if (hit) { render(hit); setStatus("dictionary failed to load — showing saved preview", "warn"); }
+    else setStatus("Error: " + e.message, "err");
+  } finally { $("#go").disabled = false; }
 }
 
-$("#go").onclick = run;
+$("#go").onclick = () => run();
 $("#input").addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") run(); });
-$("#tFuri").onclick = e => { showFuri = !showFuri; e.target.classList.toggle("on", showFuri); if (lastResult) render(lastResult); };
+$("#tFuri").onclick = e => { showFuri = !showFuri; e.target.classList.toggle("on", showFuri); if (lastResult) (lastResult.dir === "en" ? renderEn : render)(lastResult); };
 $("#tRoma").onclick = e => { const on = !document.body.classList.toggle("hide-roma"); e.target.classList.toggle("on", on); };
 $("#tLit").onclick  = e => { const on = !document.body.classList.toggle("hide-lit");  e.target.classList.toggle("on", on); };
 
@@ -391,7 +427,7 @@ document.addEventListener("click", async e => {
   }
 })();
 
-run();
+run(true);
 </script>
 </body>
 </html>
