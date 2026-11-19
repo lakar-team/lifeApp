@@ -237,8 +237,8 @@ textarea#txt{max-height:132px;overflow-y:auto}
       <div class="set"><span class="lab">Spoken language</span>
         <div class="seg" data-key="lang"><button data-v="japanese">日本語</button><button data-v="english">English</button></div></div>
       <div class="set"><span class="lab">Speech model</span>
-        <div class="seg" data-key="model"><button data-v="fast">Fast · 40 MB</button><button data-v="balanced">Balanced · 80 MB</button><button data-v="accurate">Accurate · 250 MB</button></div>
-        <span class="hint">Fast may miss words; Accurate is slower. Downloaded once, then cached.</span></div>
+        <div class="seg" data-key="model"><button data-v="fast">Fast · 40 MB</button><button data-v="balanced">Balanced · 80 MB</button><button data-v="accurate">Accurate · 250 MB</button><button data-v="kotoba" id="kotobaBtn">Japanese specialist · ~535 MB</button></div>
+        <span class="hint" id="modelHint">Fast may miss words; Accurate is slower. Japanese specialist (Kotoba-Whisper) is the most accurate for Japanese but much heavier. Try it and watch the “took … s” readout at the top.</span></div>
       <div class="set"><span class="lab">A pause of this length ends a line</span>
         <div class="seg" data-key="pause"><button data-v="0.3">0.3 s</button><button data-v="0.5">0.5 s</button><button data-v="0.7">0.7 s</button><button data-v="1.2">1.2 s</button><button data-v="2">2 s</button></div></div>
       <div class="set"><span class="lab">Longest single line</span>
@@ -285,7 +285,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   if (!FRESH) { try { Object.assign(S, JSON.parse(localStorage.getItem("wordhue.settings") || "{}")); } catch (_) {} }
   if (S.lang !== "english") S.lang = "japanese"; if (S.dir !== "en") S.dir = "ja";      // no auto-detect
   const save = () => { if (FRESH) return; try { localStorage.setItem("wordhue.settings", JSON.stringify(S)); } catch (_) {} };
-  const WHISPER = { fast: "onnx-community/whisper-tiny", balanced: "onnx-community/whisper-base", accurate: "onnx-community/whisper-small" };
+  const WHISPER = { fast: "onnx-community/whisper-tiny", balanced: "onnx-community/whisper-base", accurate: "onnx-community/whisper-small", kotoba: "onnx-community/kotoba-whisper-v2.2-ONNX" };
   const MODEL_LABEL = { fast: "Fast · 40 MB", balanced: "Balanced · 80 MB", accurate: "Accurate · 250 MB" };
 
   function applySettings() {
@@ -294,6 +294,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
     app.classList.toggle("no-dur", !S.dur);
     app.classList.toggle("no-furi", !S.furi); app.classList.toggle("no-roma", !S.roma); app.classList.toggle("no-lit", !S.mean);
     $("#tgFuri").setAttribute("aria-pressed", String(!!S.furi)); $("#tgRoma").setAttribute("aria-pressed", String(!!S.roma)); $("#tgLit").setAttribute("aria-pressed", String(!!S.mean));
+    $("#kotobaBtn").hidden = !navigator.gpu;
     $("#srcComputerBtn").hidden = !canComputer; $("#srcHint").textContent = canComputer ? "" : (isPhone ? "Phones can only use the microphone." : "This browser can only use the microphone.");
     $("#dirTxt").textContent = { ja: "日本語 → English", en: "English → 日本語" }[S.dir];
   }
@@ -407,7 +408,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   let buf = [], bufLen = 0, speech = 0, silence = 0, queue = [], busyQ = false, secs = 0, tick = null;
 
   /* ---- one combined "getting ready" meter (dictionary, speech model, optional translation model) ---- */
-  const prog = { dict: 0, asr: 0 }, ASR_MB = { fast: 40, balanced: 80, accurate: 250 };
+  const prog = { dict: 0, asr: 0 }, ASR_MB = { fast: 40, balanced: 80, accurate: 250, kotoba: 535 };
   function readyPct() {
     const w = { dict: 22, asr: ASR_MB[S.model] }, tot = w.dict + w.asr;
     return Math.min(100, Math.round((prog.dict * w.dict + prog.asr * w.asr) / tot * 100));
@@ -423,14 +424,17 @@ textarea#txt{max-height:132px;overflow-y:auto}
     if (asrP && asrKey === id) return asrP;
     asrKey = id; asr = null; prog.asr = 0;
     asrP = (async () => {
-      const dev = navigator.gpu ? "webgpu" : "wasm", mb = ASR_MB[S.model] * 1e6, got = {}; asrDev = dev === "webgpu" ? "GPU" : "CPU";
+      const dev = navigator.gpu ? "webgpu" : "wasm", got = {}; asrDev = dev === "webgpu" ? "GPU" : "CPU";
+      let f16 = false; if (dev === "webgpu") { try { const ad = await navigator.gpu.requestAdapter(); f16 = !!(ad && ad.features.has("shader-f16")); } catch (_) {} }
+      if (S.model === "kotoba") ASR_MB.kotoba = f16 ? 535 : 726;      // q4f16 needs a GPU with 16-bit shader support; otherwise q4
+      const mb = ASR_MB[S.model] * 1e6;
       model.loading = true; model.pct = 0; render();
       try {
         const { pipeline } = await tf();
         const opts = { device: dev, progress_callback: p => {
           if (p.status === "progress" && p.total) { got[p.file] = p.loaded; const sum = Object.values(got).reduce((x, y) => x + y, 0);
             prog.asr = Math.min(0.99, sum / mb); model.pct = Math.round(prog.asr * 100); showReady(); if (listening) render(); } } };
-        if (dev === "webgpu") opts.dtype = { encoder_model: "fp32", decoder_model_merged: "q4" };
+        if (dev === "webgpu") opts.dtype = S.model === "kotoba" ? (f16 ? { encoder_model: "q4f16", decoder_model_merged: "q4f16" } : { encoder_model: "q4", decoder_model_merged: "q4" }) : { encoder_model: "fp32", decoder_model_merged: "q4" };
         asr = await pipeline("automatic-speech-recognition", id, opts); prog.asr = 1; showReady();
         return asr;
       } finally { model.loading = false; if (listening) render(); }
@@ -551,7 +555,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
       try {
         await ensureAsr();
         const t0 = performance.now();
-        const r = await asr(audio, { chunk_length_s: 30, task: "transcribe", language: S.lang, max_new_tokens: Math.min(220, Math.ceil(total * 14) + 12) });
+        const r = await asr(audio, { chunk_length_s: 30, task: "transcribe", language: S.model === "kotoba" ? "japanese" : S.lang, max_new_tokens: Math.min(220, Math.ceil(total * 14) + 12) });
         const text = (r.text || "").trim(), took = (performance.now() - t0) / 1000;
         costEMA = costEMA ? 0.6 * costEMA + 0.4 * took : took;
         $("#perf").textContent = `${total.toFixed(1)} s of audio took ${took.toFixed(1)} s · ${asrDev}${batch.length > 1 ? " · caught up " + batch.length + " lines" : ""} · lines ≥ ${keepUpMin().toFixed(0)} s`;
