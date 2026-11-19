@@ -17,3 +17,9 @@ Settings and downloads are not kept between visits, to experience the first run 
 ## Branches
 - `main` – this version (ReazonSpeech / sherpa-onnx).
 - `whisper-version` – the previous Whisper (transformers.js) version, including the optional Kotoba-Whisper model.
+
+## Phone and desktop are one code path
+There is one page and one set of scripts. Narrow screens (700 px and below) change only the layout (compact header, the word card as a bottom sheet). What a device can do and what we say about it lives in one place (`CAPS` / `COPY` in `index.html`). The quick popup and the word card share the same meaning list, the same "pick a meaning" function and the same positioning helper.
+
+## Tests
+`node tests/wordhue-smoke.cjs [out.json]` (needs `npm i --no-save playwright`) runs the same scenarios at desktop, tablet and phone widths and prints one JSON summary. Run it before and after a change and diff the two files. The page's test hook and the `?models=` override exist only with `?debug` in the address.
