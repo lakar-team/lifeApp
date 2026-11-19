@@ -280,7 +280,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   const tf = () => tfP || (tfP = import(TF_URL).then(m => { if (FRESH) m.env.useBrowserCache = false; return m; }));
 
   /* ================= settings (remembered on this device) ================= */
-  const DEF = { lang: "japanese", model: isPhone ? "fast" : "accurate", pause: "0.3", max: "5", source: canComputer ? "computer" : "mic", auto: false, dur: true, scroll: true, furi: true, roma: true, mean: true, dir: "ja" };
+  const DEF = { lang: "japanese", model: isPhone ? "fast" : "accurate", pause: "0.7", max: "8", source: canComputer ? "computer" : "mic", auto: false, dur: true, scroll: true, furi: true, roma: true, mean: true, dir: "ja" };
   const S = { ...DEF };
   if (!FRESH) { try { Object.assign(S, JSON.parse(localStorage.getItem("wordhue.settings") || "{}")); } catch (_) {} }
   if (S.lang !== "english") S.lang = "japanese"; if (S.dir !== "en") S.dir = "ja";      // no auto-detect
@@ -504,6 +504,11 @@ textarea#txt{max-height:132px;overflow-y:auto}
     cleanup(); setListening(false);
   }
 
+  /* Keep-up mode. Every transcription call has a large fixed cost, so lines shorter than that cost can never keep up.
+     We measure how long a call takes and make lines at least that long (merging short utterances), within limits. */
+  let costEMA = 0;
+  const keepUpMin = () => Math.min(12, Math.max(MIN_SEG, costEMA * 0.8));
+  const keepUpMax = () => Math.min(25, Math.max(+S.max, Math.ceil(costEMA * 1.3)));
   let meterTick = 0;
   function onAudio(chunk) {
     let sum = 0; for (let i = 0; i < chunk.length; i++) sum += chunk[i] * chunk[i];
@@ -513,9 +518,9 @@ textarea#txt{max-height:132px;overflow-y:auto}
     if (rms > THRESH) { speech += dur; silence = 0; } else silence += dur;
     if (speech === 0) return;
     buf.push(chunk); bufLen += chunk.length;
-    const len = bufLen / SR, pause = +S.pause, mx = +S.max;
-    if ((silence >= pause && speech >= MIN_SEG) || len >= mx) flush();
-    else if (silence >= pause) { buf = []; bufLen = speech = silence = 0; }
+    const len = bufLen / SR, pause = +S.pause, mx = keepUpMax();
+    if ((silence >= pause && speech >= keepUpMin()) || (silence >= Math.max(pause, 1.2) && speech >= MIN_SEG) || len >= mx) flush();
+    else if (silence >= pause && speech < MIN_SEG) { buf = []; bufLen = speech = silence = 0; }
   }
   function flush() {
     const out = new Float32Array(bufLen); let o = 0; for (const c of buf) { out.set(c, o); o += c.length; }
@@ -538,8 +543,8 @@ textarea#txt{max-height:132px;overflow-y:auto}
     if (busyQ) return; busyQ = true;
     while (queue.length) {
       // catch up: if lines are piling up, transcribe the waiting ones together in a single pass
-      const batch = [queue.shift()]; let total = batch[0].meta.dur;
-      while (queue.length >= 2 && total + queue[0].meta.dur <= 25) { const q = queue.shift(); batch.push(q); total += q.meta.dur; }
+      const batch = [queue.shift()]; let total = batch[0].meta.dur, secsAudio = batch[0].audio.length / SR;   // Whisper reads 30 s at most
+      while (queue.length >= 1 && secsAudio + queue[0].audio.length / SR <= 25) { const q = queue.shift(); batch.push(q); total += q.meta.dur; secsAudio += q.audio.length / SR; }
       const audio = batch.length === 1 ? batch[0].audio : (() => { const n = batch.reduce((x, q) => x + q.audio.length, 0), a = new Float32Array(n); let o = 0; batch.forEach(q => { a.set(q.audio, o); o += q.audio.length; }); return a; })();
       const meta = { ...batch[0].meta, dur: total }, first = batch[0].item, myEpoch = epoch;
       inflight = total; render();
@@ -548,7 +553,8 @@ textarea#txt{max-height:132px;overflow-y:auto}
         const t0 = performance.now();
         const r = await asr(audio, { chunk_length_s: 30, task: "transcribe", language: S.lang, max_new_tokens: Math.min(220, Math.ceil(total * 14) + 12) });
         const text = (r.text || "").trim(), took = (performance.now() - t0) / 1000;
-        $("#perf").textContent = `${total.toFixed(1)} s of audio took ${took.toFixed(1)} s · ${asrDev}${batch.length > 1 ? " · caught up " + batch.length + " lines" : ""}`;
+        costEMA = costEMA ? 0.6 * costEMA + 0.4 * took : took;
+        $("#perf").textContent = `${total.toFixed(1)} s of audio took ${took.toFixed(1)} s · ${asrDev}${batch.length > 1 ? " · caught up " + batch.length + " lines" : ""} · lines ≥ ${keepUpMin().toFixed(0)} s`;
         if (epoch === myEpoch) {
           batch.slice(1).forEach(q => { items = items.filter(x => x !== q.item); });
           if (text && !HALLU.test(text)) { if (S.auto) await translate(text, meta, first); else addReadingLine(text, meta, first); }
@@ -660,6 +666,8 @@ textarea#txt{max-height:132px;overflow-y:auto}
   if (!canComputer && !canMic) { $("#listen").disabled = true; setStatus("This browser can’t listen to audio. Try Chrome, Edge, Safari or Firefox over HTTPS.", true); }
   window.WordhueTest = { items: () => items, translate, addReadingLine, prog,
     setAsr(fn) { asr = fn; asrKey = WHISPER[S.model]; asrP = Promise.resolve(fn); asrDev = "GPU"; },
+    feed(sec, amp) { const n = Math.round(sec * SR / 2048); for (let i = 0; i < n; i++) onAudio(new Float32Array(2048).fill(amp)); },
+    cost() { return { costEMA, min: keepUpMin(), max: keepUpMax() }; },
     fakeSegment(sec) { const a = new Float32Array(Math.round(sec * SR)); buf = [a]; bufLen = a.length; speech = sec; silence = 0; flush(); } };
 })();
 
