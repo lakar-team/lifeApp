@@ -98,6 +98,7 @@ button:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px sol
 .composer{background:var(--panel);border-top:1px solid var(--line);padding:10px 16px 12px;display:flex;flex-direction:column;gap:8px}
 .inputrow{display:flex;gap:8px;align-items:center}
 .inputrow textarea{flex:1;min-width:0;resize:none;height:42px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:inherit;font-family:var(--jp);font-size:15px}
+.dirbtn .short{display:none}
 .dirbtn{height:42px;padding:0 11px;border-radius:10px;background:var(--panel2);font-size:12px;color:var(--dim);white-space:nowrap}
 .send{height:42px;padding:0 16px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-weight:600}
 .toggles{display:flex;align-items:center;gap:6px;flex-wrap:wrap;position:relative}
@@ -145,7 +146,7 @@ button:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px sol
 @container (max-width:560px){
   .top{padding:10px 12px;gap:8px}.brand small,.top .lbl,.top .lvl{display:none}
   .feed{padding:4px 12px 14px}.composer{padding:8px 12px 10px}.topic{padding:6px 12px}
-  .tok .ja{font-size:19px}.legendbtn{display:none}.dirbtn .full,.dirbtn .sym{display:none}.dirbtn::after{content:"⇄"}.dirbtn{width:42px;padding:0;font-size:16px}.send{padding:0 13px}.inputrow textarea{font-size:14px}
+  .tok .ja{font-size:19px}.legendbtn{display:none}.dirbtn .full,.dirbtn .sym{display:none}.dirbtn .short{display:inline}.dirbtn{padding:0 10px;font-size:13px;color:var(--fg)}.send{padding:0 13px}.inputrow textarea{font-size:14px}
 }
 
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
@@ -288,7 +289,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   <footer class="composer">
     <div class="inputrow">
       <textarea id="txt" rows="1" placeholder="Type or paste text…" aria-label="Text to translate"></textarea>
-      <button class="dirbtn" id="dir" title="Direction: click to change"><span class="full" id="dirTxt">Auto-detect</span><span class="sym" aria-hidden="true"> ⇄</span></button>
+      <button class="dirbtn" id="dir" title="Direction: click to change"><span class="full" id="dirTxt">Auto-detect</span><span class="short" id="dirShort"></span><span class="sym" aria-hidden="true"> ⇄</span></button>
       <button class="send" id="send">Translate</button>
     </div>
     <div class="toggles">
@@ -366,7 +367,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
     app.classList.toggle("no-furi", !S.furi); app.classList.toggle("no-roma", !S.roma); app.classList.toggle("no-lit", !S.mean);
     $("#tgFuri").setAttribute("aria-pressed", String(!!S.furi)); $("#tgRoma").setAttribute("aria-pressed", String(!!S.roma)); $("#tgLit").setAttribute("aria-pressed", String(!!S.mean));
     $("#srcComputerBtn").hidden = !canComputer; $("#srcHint").textContent = canComputer ? "" : (isPhone ? "Phones can only use the microphone." : "This browser can only use the microphone.");
-    $("#dirTxt").textContent = { ja: "日本語 → English", en: "English → 日本語" }[S.dir];
+    $("#dirTxt").textContent = { ja: "日本語 → English", en: "English → 日本語" }[S.dir]; $("#dirShort").textContent = { ja: "日→EN ⇄", en: "EN→日 ⇄" }[S.dir];
   }
 
   /* ================= conversation feed ================= */
@@ -577,8 +578,8 @@ textarea#txt{max-height:132px;overflow-y:auto}
   /* ================= translating ================= */
   const nowStamp = () => { const s = Math.floor((Date.now() - sessionT0) / 1000); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
   let sessionT0 = Date.now();
-  async function translate(text, meta, at) {
-    const dir = meta && meta.heard ? "ja" : S.dir;
+  async function translate(text, meta, at, forceDir) {
+    const dir = forceDir || (meta && meta.heard ? "ja" : S.dir);
     try {
       if (dir === "en") {
         const r = await L.en2ja(text, m => setStatus(m));
@@ -910,6 +911,9 @@ textarea#txt{max-height:132px;overflow-y:auto}
   txt.addEventListener("input", () => { txt.style.height = "42px"; txt.style.height = Math.min(132, txt.scrollHeight) + "px"; });
   async function submit() {
     const v = txt.value.trim(); if (!v) return;
+    const hasJa = L.detect(v) === "ja";
+    if (S.dir === "ja" && !hasJa) { toast("That looks like English, but the direction is 日本語 → English.", { label: "Switch to EN → 日", fn: () => { S.dir = "en"; save(); applySettings(); submit(); } }); return; }
+    if (S.dir === "en" && hasJa) { toast("That looks like Japanese, but the direction is English → 日本語.", { label: "Switch to 日 → EN", fn: () => { S.dir = "ja"; save(); applySettings(); submit(); } }); return; }
     txt.value = ""; txt.style.height = "42px"; $("#send").disabled = true; scrollOnNext = true;
     await translate(v, null); $("#send").disabled = false;
   }
@@ -944,7 +948,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
     const tr = e.target.closest("[data-trans]");
     if (tr) {
       const it = byId(tr.dataset.trans);
-      if (!it.tk) { translate(it.raw, it.meta, it); return; }
+      if (!it.tk) { translate(it.raw, it.meta, it, L.detect(it.raw) === "ja" ? "ja" : "en"); return; }
       (async () => { if (!it.tr) await ensureGlosses(it); it.tr = !it.tr; render(); })();
       return;
     }
