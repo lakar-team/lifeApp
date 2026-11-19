@@ -234,11 +234,8 @@ textarea#txt{max-height:132px;overflow-y:auto}
       <div class="set" id="srcSet"><span class="lab">Listen to</span>
         <div class="seg" data-key="source"><button data-v="computer" id="srcComputerBtn">Computer audio</button><button data-v="mic">Microphone</button></div>
         <span class="hint" id="srcHint"></span></div>
-      <div class="set"><span class="lab">Spoken language</span>
-        <div class="seg" data-key="lang"><button data-v="japanese">日本語</button><button data-v="english">English</button></div></div>
-      <div class="set"><span class="lab">Speech model</span>
-        <div class="seg" data-key="model"><button data-v="fast">Fast · 40 MB</button><button data-v="balanced">Balanced · 80 MB</button><button data-v="accurate">Accurate · 250 MB</button><button data-v="kotoba" id="kotobaBtn">Japanese specialist · ~535 MB</button></div>
-        <span class="hint" id="modelHint">Fast may miss words; Accurate is slower. Japanese specialist (Kotoba-Whisper) is the most accurate for Japanese but much heavier. Try it and watch the “took … s” readout at the top.</span></div>
+      <div class="set"><span class="lab">Speech recognition</span>
+        <span class="hint">Japanese, on your device (ReazonSpeech). About 160 MB, downloaded when the page opens. It is fast on short lines, so lines can be short.</span></div>
       <div class="set"><span class="lab">A pause of this length ends a line</span>
         <div class="seg" data-key="pause"><button data-v="0.3">0.3 s</button><button data-v="0.5">0.5 s</button><button data-v="0.7">0.7 s</button><button data-v="1.2">1.2 s</button><button data-v="2">2 s</button></div></div>
       <div class="set"><span class="lab">Longest single line</span>
@@ -247,7 +244,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
       <div class="set"><div class="row2"><div><span class="lab">Auto-scroll to newest line</span><br><span class="hint">Turn off to read at your own pace. A button shows when new lines arrive.</span></div><button class="switch" role="switch" data-sw="scroll" aria-label="Auto-scroll to newest line"></button></div></div>
       <div class="set"><div class="row2"><div><span class="lab">Show line length</span></div><button class="switch" role="switch" data-sw="dur" aria-label="Show line length"></button></div></div>
       <div class="set"><span class="hint">Nothing is uploaded: recognition and translation run in your browser. <span id="freshNote"></span></span></div>
-      <div class="set credits">Word meanings: <a href="https://www.edrdg.org/edrdg/licence.html" target="_blank" rel="noopener">JMdict</a> © EDRDG, CC BY-SA 4.0 · Tokenizer: kuromoji.js (Apache-2.0) with mecab-ipadic · Speech: Whisper (MIT). Word-for-word glosses are literal and show the most common meaning.</div>
+      <div class="set credits">Word meanings: <a href="https://www.edrdg.org/edrdg/licence.html" target="_blank" rel="noopener">JMdict</a> © EDRDG, CC BY-SA 4.0 · Tokenizer: kuromoji.js (Apache-2.0) with mecab-ipadic · Speech: ReazonSpeech (Apache-2.0) with sherpa-onnx (Apache-2.0). Word-for-word glosses are literal and show the most common meaning.</div>
     </div>
   </aside>
 </div>
@@ -259,7 +256,6 @@ textarea#txt{max-height:132px;overflow-y:auto}
   const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
   const L = window.WordhueLocal, app = $("#app"), feed = $("#feed");
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const TF_URL = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2";
 
   /* Testing mode: behave like a first visit every time (no saved settings, no cached downloads).
      Add ?keep to the address to turn this off and keep settings and cached models. */
@@ -276,17 +272,13 @@ textarea#txt{max-height:132px;overflow-y:auto}
   const isPhone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.userAgentData && navigator.userAgentData.mobile) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
   const canComputer = !!(md && md.getDisplayMedia) && !isPhone;   // phones cannot share other apps' audio
   const canMic = !!(md && md.getUserMedia);
-  let tfP = null;
-  const tf = () => tfP || (tfP = import(TF_URL).then(m => { if (FRESH) m.env.useBrowserCache = false; return m; }));
 
   /* ================= settings (remembered on this device) ================= */
-  const DEF = { lang: "japanese", model: isPhone ? "fast" : "accurate", pause: "0.7", max: "8", source: canComputer ? "computer" : "mic", auto: false, dur: true, scroll: true, furi: true, roma: true, mean: true, dir: "ja" };
+  const DEF = { pause: "0.5", max: "8", source: canComputer ? "computer" : "mic", auto: false, dur: true, scroll: true, furi: true, roma: true, mean: true, dir: "ja" };
   const S = { ...DEF };
   if (!FRESH) { try { Object.assign(S, JSON.parse(localStorage.getItem("wordhue.settings") || "{}")); } catch (_) {} }
-  if (S.lang !== "english") S.lang = "japanese"; if (S.dir !== "en") S.dir = "ja";      // no auto-detect
+  if (S.dir !== "en") S.dir = "ja";      // no auto-detect
   const save = () => { if (FRESH) return; try { localStorage.setItem("wordhue.settings", JSON.stringify(S)); } catch (_) {} };
-  const WHISPER = { fast: "onnx-community/whisper-tiny", balanced: "onnx-community/whisper-base", accurate: "onnx-community/whisper-small", kotoba: "onnx-community/kotoba-whisper-v2.2-ONNX" };
-  const MODEL_LABEL = { fast: "Fast · 40 MB", balanced: "Balanced · 80 MB", accurate: "Accurate · 250 MB" };
 
   function applySettings() {
     $$(".seg[data-key]").forEach(g => [...g.children].forEach(b => b.setAttribute("aria-pressed", String(String(S[g.dataset.key]) === b.dataset.v))));
@@ -294,7 +286,6 @@ textarea#txt{max-height:132px;overflow-y:auto}
     app.classList.toggle("no-dur", !S.dur);
     app.classList.toggle("no-furi", !S.furi); app.classList.toggle("no-roma", !S.roma); app.classList.toggle("no-lit", !S.mean);
     $("#tgFuri").setAttribute("aria-pressed", String(!!S.furi)); $("#tgRoma").setAttribute("aria-pressed", String(!!S.roma)); $("#tgLit").setAttribute("aria-pressed", String(!!S.mean));
-    $("#kotobaBtn").hidden = !navigator.gpu;
     $("#srcComputerBtn").hidden = !canComputer; $("#srcHint").textContent = canComputer ? "" : (isPhone ? "Phones can only use the microphone." : "This browser can only use the microphone.");
     $("#dirTxt").textContent = { ja: "日本語 → English", en: "English → 日本語" }[S.dir];
   }
@@ -385,7 +376,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   const nowStamp = () => { const s = Math.floor((Date.now() - sessionT0) / 1000); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
   let sessionT0 = Date.now();
   async function translate(text, meta, at) {
-    const dir = meta && meta.heard ? (S.lang === "english" ? "en" : "ja") : S.dir;
+    const dir = meta && meta.heard ? "ja" : S.dir;
     const busy = m => setStatus(m);
     try {
       if (dir === "en") { const r = await L.en2ja(text, busy); addItems(r.sentences.map(s => ({ kind: "en", s, meta: meta ? { ...meta } : null })), at); }
@@ -404,13 +395,14 @@ textarea#txt{max-height:132px;overflow-y:auto}
 
   /* ================= listening (audio capture + Whisper) ================= */
   const SR = 16000, MIN_SEG = 0.8, THRESH = 0.012;
-  let asr = null, asrDev = "", asrP = null, asrKey = "", ctx = null, stream = null, node = null, listening = false, pending = 0;
+  let asrWorker = null, asrFake = null, asrP = null, callId = 0, ctx = null, stream = null, node = null, listening = false, pending = 0;
   let buf = [], bufLen = 0, speech = 0, silence = 0, queue = [], busyQ = false, secs = 0, tick = null;
 
   /* ---- one combined "getting ready" meter (dictionary, speech model, optional translation model) ---- */
-  const prog = { dict: 0, asr: 0 }, ASR_MB = { fast: 40, balanced: 80, accurate: 250, kotoba: 535 };
+  const prog = { dict: 0, asr: 0 }, ASR_MB = 161, asrCalls = new Map();
+  const MODEL_BASE = new URLSearchParams(location.search).get("models") || "https://huggingface.co/reazon-research/reazonspeech-k2-v2/resolve/main/";
   function readyPct() {
-    const w = { dict: 22, asr: ASR_MB[S.model] }, tot = w.dict + w.asr;
+    const w = { dict: 22, asr: ASR_MB }, tot = w.dict + w.asr;
     return Math.min(100, Math.round((prog.dict * w.dict + prog.asr * w.asr) / tot * 100));
   }
   let readyT = null;
@@ -420,26 +412,28 @@ textarea#txt{max-height:132px;overflow-y:auto}
     else el.textContent = "Getting ready " + pc + "%";
   }
   function ensureAsr() {
-    const id = WHISPER[S.model];
-    if (asrP && asrKey === id) return asrP;
-    asrKey = id; asr = null; prog.asr = 0;
-    asrP = (async () => {
-      const dev = navigator.gpu ? "webgpu" : "wasm", got = {}; asrDev = dev === "webgpu" ? "GPU" : "CPU";
-      let f16 = false; if (dev === "webgpu") { try { const ad = await navigator.gpu.requestAdapter(); f16 = !!(ad && ad.features.has("shader-f16")); } catch (_) {} }
-      if (S.model === "kotoba") ASR_MB.kotoba = f16 ? 535 : 726;      // q4f16 needs a GPU with 16-bit shader support; otherwise q4
-      const mb = ASR_MB[S.model] * 1e6;
-      model.loading = true; model.pct = 0; render();
-      try {
-        const { pipeline } = await tf();
-        const opts = { device: dev, progress_callback: p => {
-          if (p.status === "progress" && p.total) { got[p.file] = p.loaded; const sum = Object.values(got).reduce((x, y) => x + y, 0);
-            prog.asr = Math.min(0.99, sum / mb); model.pct = Math.round(prog.asr * 100); showReady(); if (listening) render(); } } };
-        if (dev === "webgpu") opts.dtype = S.model === "kotoba" ? (f16 ? { encoder_model: "q4f16", decoder_model_merged: "q4f16" } : { encoder_model: "q4", decoder_model_merged: "q4" }) : { encoder_model: "fp32", decoder_model_merged: "q4" };
-        asr = await pipeline("automatic-speech-recognition", id, opts); prog.asr = 1; showReady();
-        return asr;
-      } finally { model.loading = false; if (listening) render(); }
-    })().catch(e => { asrP = null; throw e; });
+    if (asrP) return asrP;
+    prog.asr = 0; model.loading = true; model.pct = 0; render();
+    asrP = new Promise((resolve, reject) => {
+      try { asrWorker = new Worker("asr-worker.js"); } catch (e) { reject(e); return; }
+      asrWorker.onmessage = ev => {
+        const m = ev.data;
+        if (m.type === "progress") { prog.asr = Math.min(0.99, m.frac); model.pct = Math.round(prog.asr * 100); showReady(); if (listening) render(); }
+        else if (m.type === "ready") { prog.asr = 1; showReady(); resolve(true); }
+        else if (m.type === "result") { const c = asrCalls.get(m.id); if (c) { asrCalls.delete(m.id); c.resolve(m); } }
+        else if (m.type === "error") { const c = m.id && asrCalls.get(m.id); if (c) { asrCalls.delete(m.id); c.reject(new Error(m.message)); } else reject(new Error(m.message)); }
+      };
+      asrWorker.onerror = ev => reject(new Error(ev.message || "the speech worker failed to start"));
+      asrWorker.postMessage({ type: "init", base: MODEL_BASE, vendor: new URL("vendor/sherpa/", location.href).href, fresh: FRESH });
+    }).then(v => { model.loading = false; if (listening) render(); return v; }).catch(e => { model.loading = false; asrP = null; throw e; });
     return asrP;
+  }
+  function transcribe(audio) {                       // → { text, ms }
+    if (asrFake) return asrFake(audio);
+    return new Promise((resolve, reject) => {
+      const id = ++callId, copy = audio.slice(); asrCalls.set(id, { resolve, reject });
+      asrWorker.postMessage({ type: "decode", id, samples: copy }, [copy.buffer]);
+    });
   }
   // start fetching everything while the page is idle, so Listen is quick
   async function preload() {
@@ -451,7 +445,6 @@ textarea#txt{max-height:132px;overflow-y:auto}
   const workletSrc = `class P extends AudioWorkletProcessor{process(i){const c=i[0];if(c&&c[0])this.port.postMessage(c[0].slice());return true}}registerProcessor('cap',P)`;
 
   let wake = null, srcLabel = "";
-  const resetBehind = () => { behindStreak = 0; suggested = false; };
   async function keepAwake() { try { if (navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); } catch (_) {} }
   document.addEventListener("visibilitychange", () => { if (listening && document.visibilityState === "visible") keepAwake(); });
 
@@ -480,7 +473,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
       node.port.onmessage = e => onAudio(e.data);
       stream.getAudioTracks()[0].addEventListener("ended", stopListening);
       buf = []; bufLen = speech = silence = 0; secs = 0; sessionT0 = Date.now();
-      keepAwake(); resetBehind(); setListening(true);
+      keepAwake(); setListening(true);
       ensureAsr().catch(e => toast("Couldn’t load the speech model: " + e.message, { label: "Try again", fn: () => ensureAsr().catch(() => {}) }));
     } catch (e) {
       cleanup(); setListening(false);
@@ -536,18 +529,13 @@ textarea#txt{max-height:132px;overflow-y:auto}
     queue.push({ audio: out, meta, item }); pending++; drain();
   }
   const HALLU = /^(ご視聴ありがとうございました。?|ありがとうございました。?|thank(s| you) for watching[.!]?|you|\.+)$/i;
-  let epoch = 0, inflight = 0, behindStreak = 0, suggested = false;
+  let epoch = 0, inflight = 0;
   const behindSec = () => Math.round(inflight + queue.reduce((x, q) => x + q.meta.dur, 0));
-  function suggestFaster() {
-    if (suggested || S.model === "fast") return; suggested = true;
-    const next = S.model === "accurate" ? "balanced" : "fast";
-    toast("Transcription is falling behind the conversation.", { label: next === "balanced" ? "Use Balanced" : "Use Fast", fn: () => { S.model = next; save(); applySettings(); ensureAsr().catch(() => {}); suggested = false; behindStreak = 0; } });
-  }
   async function drain() {
     if (busyQ) return; busyQ = true;
     while (queue.length) {
       // catch up: if lines are piling up, transcribe the waiting ones together in a single pass
-      const batch = [queue.shift()]; let total = batch[0].meta.dur, secsAudio = batch[0].audio.length / SR;   // Whisper reads 30 s at most
+      const batch = [queue.shift()]; let total = batch[0].meta.dur, secsAudio = batch[0].audio.length / SR;
       while (queue.length >= 1 && secsAudio + queue[0].audio.length / SR <= 25) { const q = queue.shift(); batch.push(q); total += q.meta.dur; secsAudio += q.audio.length / SR; }
       const audio = batch.length === 1 ? batch[0].audio : (() => { const n = batch.reduce((x, q) => x + q.audio.length, 0), a = new Float32Array(n); let o = 0; batch.forEach(q => { a.set(q.audio, o); o += q.audio.length; }); return a; })();
       const meta = { ...batch[0].meta, dur: total }, first = batch[0].item, myEpoch = epoch;
@@ -555,10 +543,10 @@ textarea#txt{max-height:132px;overflow-y:auto}
       try {
         await ensureAsr();
         const t0 = performance.now();
-        const r = await asr(audio, { chunk_length_s: 30, task: "transcribe", language: S.model === "kotoba" ? "japanese" : S.lang, max_new_tokens: Math.min(220, Math.ceil(total * 14) + 12) });
+        const r = await transcribe(audio);
         const text = (r.text || "").trim(), took = (performance.now() - t0) / 1000;
         costEMA = costEMA ? 0.6 * costEMA + 0.4 * took : took;
-        $("#perf").textContent = `${total.toFixed(1)} s of audio took ${took.toFixed(1)} s · ${asrDev}${batch.length > 1 ? " · caught up " + batch.length + " lines" : ""} · lines ≥ ${keepUpMin().toFixed(0)} s`;
+        $("#perf").textContent = `${total.toFixed(1)} s of audio took ${took.toFixed(1)} s · CPU${batch.length > 1 ? " · caught up " + batch.length + " lines" : ""}`;
         if (epoch === myEpoch) {
           batch.slice(1).forEach(q => { items = items.filter(x => x !== q.item); });
           if (text && !HALLU.test(text)) { if (S.auto) await translate(text, meta, first); else addReadingLine(text, meta, first); }
@@ -566,7 +554,6 @@ textarea#txt{max-height:132px;overflow-y:auto}
         }
       } catch (e) { batch.forEach(q => { items = items.filter(x => x !== q.item); }); render(); toast("Couldn’t transcribe a line: " + e.message); }
       pending = Math.max(0, pending - batch.length); inflight = 0;
-      behindStreak = queue.length >= 2 ? behindStreak + 1 : 0; if (behindStreak >= 2) suggestFaster();
       render();
     }
     busyQ = false;
@@ -597,7 +584,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   const drawer = o => { $("#drawer").classList.toggle("open", o); $("#scrim").classList.toggle("open", o); };
   $("#gear").onclick = () => drawer(true); $("#closeDrawer").onclick = () => drawer(false); $("#scrim").onclick = () => drawer(false);
   document.addEventListener("keydown", e => { if (e.key === "Escape") { drawer(false); closeMenu(); $("#legendPop").hidden = true; } });
-  $$(".seg[data-key]").forEach(g => g.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S[g.dataset.key] = b.dataset.v; save(); applySettings(); if (g.dataset.key === "model") ensureAsr().catch(() => {}); }));
+  $$(".seg[data-key]").forEach(g => g.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S[g.dataset.key] = b.dataset.v; save(); applySettings(); }));
   $$(".switch").forEach(sw => sw.onclick = () => { S[sw.dataset.sw] = !S[sw.dataset.sw]; save(); applySettings(); render(); });
   [["tgFuri", "furi"], ["tgRoma", "roma"], ["tgLit", "mean"]].forEach(([id, k]) => $("#" + id).onclick = () => { S[k] = !S[k]; save(); applySettings(); });
   $("#legendBtn").onclick = () => { const p = $("#legendPop"); p.hidden = !p.hidden; };
@@ -669,7 +656,8 @@ textarea#txt{max-height:132px;overflow-y:auto}
   applySettings(); render(); preload();
   if (!canComputer && !canMic) { $("#listen").disabled = true; setStatus("This browser can’t listen to audio. Try Chrome, Edge, Safari or Firefox over HTTPS.", true); }
   window.WordhueTest = { items: () => items, translate, addReadingLine, prog,
-    setAsr(fn) { asr = fn; asrKey = WHISPER[S.model]; asrP = Promise.resolve(fn); asrDev = "GPU"; },
+    setAsr(fn) { asrFake = async a => ({ text: (await fn(a)).text, ms: 0 }); asrP = Promise.resolve(true); },
+    feedSamples(f32) { for (let i = 0; i < f32.length; i += 2048) onAudio(f32.slice(i, i + 2048)); },
     feed(sec, amp) { const n = Math.round(sec * SR / 2048); for (let i = 0; i < n; i++) onAudio(new Float32Array(2048).fill(amp)); },
     cost() { return { costEMA, min: keepUpMin(), max: keepUpMax() }; },
     fakeSegment(sec) { const a = new Float32Array(Math.round(sec * SR)); buf = [a]; bufLen = a.length; speech = sec; silence = 0; flush(); } };
