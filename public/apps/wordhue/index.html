@@ -421,7 +421,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   function natPipe() {
     if (!nat.p) nat.p = (async () => {
       const { pipeline } = await tf();
-      const pl = await pipeline("translation", "Xenova/opus-mt-ja-en", { progress_callback: p => {
+      const pl = await pipeline("translation", "Xenova/opus-mt-ja-en", { device: "wasm", session_options: { intraOpNumThreads: 2 }, progress_callback: p => {
         if (p.status === "progress" && p.total) { prog.nat = Math.min(0.99, p.loaded / p.total); nat.status = `getting translation model ${Math.round(p.loaded / p.total * 100)}%`; showReady(); render(); } } });
       prog.nat = 1; showReady(); return pl;
     })().catch(e => { nat.p = null; throw e; });
@@ -432,7 +432,6 @@ textarea#txt{max-height:132px;overflow-y:auto}
     item.natBusy = true;
     const text = item.kind === "ja" ? item.s.tokens.map(t => t.text).join("") : item.raw;
     nat.chain = nat.chain.then(async () => {
-      while (busyQ || queue.length) await new Promise(r => setTimeout(r, 250));      // transcription has priority
       try {
         const pipe = await natPipe();
         const out = await pipe(text, { max_new_tokens: 200 });
