@@ -77,6 +77,8 @@
     return new Promise((ok, no) => window.kuromoji.builder({ dicPath: new URL("vendor/dict/", BASE).pathname }).build((e, t) => e ? no(e) : ok(t)));
   })().catch(e => { tokP = null; throw e; }));
   const getJa = () => jaP || (jaP = fetch(BASE + "data/ja.json").then(r => { if (!r.ok) throw new Error("ja.json " + r.status); return r.json(); }).then(j => j.w).catch(e => { jaP = null; throw e; }));
+  let extraP = null;                                   // rarer words and names, loaded the first time a word card needs them
+  const getExtra = () => extraP || (extraP = Promise.all([0, 1, 2].map(i => fetch(BASE + `data/ja-extra-${i}.json`).then(r => { if (!r.ok) throw new Error("ja-extra " + r.status); return r.json(); }))).then(parts => Object.assign({}, ...parts.map(x => x.w))).catch(e => { extraP = null; throw e; }));
   const getEn = () => enP || (enP = fetch(BASE + "data/en.json").then(r => { if (!r.ok) throw new Error("en.json " + r.status); return r.json(); }).then(j => j.r).catch(e => { enP = null; throw e; }));
 
   /* ================= Japanese → English ================= */
@@ -202,13 +204,7 @@
     return null;
   }
 
-  async function ja2en(text, onStatus, opts) {
-    onStatus && onStatus("loading Japanese dictionary (first time only, ~20 MB)…");
-    const [tok, dict] = await Promise.all([getTok(), getJa()]);
-    const t0 = performance.now();
-    const keep = !(opts && opts.noContext);
-    const sentences = splitSentences(text).map(sent => {
-      const raw = tok.tokenize(sent);
+  function analyzeRaw(raw, dict, keep) {
       const info = raw.map(k => ({ k, base: k.basic_form && k.basic_form !== "*" ? k.basic_form : k.surface_form, e: null }));
       info.forEach(o => { o.e = dict[o.base] || dict[o.k.surface_form] || null; });
       // pass A: context from earlier sentences only → rough topic of this sentence
@@ -274,8 +270,15 @@
       });
       if (keep) { conv.sents.push({ words: usedWords, fields: usedFields }); if (conv.sents.length > conv.max) conv.sents.shift(); }
       const conf = content ? known / content : 1;
-      return { romaji: romajiRow, tokens, literal, english, alts, confidence: Math.round(conf * 100) / 100, warnings: [...new Set(warnings)] };
-    });
+      return { raw, romaji: romajiRow, tokens, literal, english, alts, confidence: Math.round(conf * 100) / 100, warnings: [...new Set(warnings)] };
+  }
+
+  async function ja2en(text, onStatus, opts) {
+    onStatus && onStatus("loading Japanese dictionary (first time only, ~20 MB)…");
+    const [tok, dict] = await Promise.all([getTok(), getJa()]);
+    const t0 = performance.now();
+    const keep = !(opts && opts.noContext);
+    const sentences = splitSentences(text).map(sent => analyzeRaw(tok.tokenize(sent), dict, keep));
     return { input: text, normalized: text, sentences, ms: Math.round(performance.now() - t0),
       credits: "Dictionary: JMdict (c) EDRDG, CC BY-SA 4.0. Tokenizer: kuromoji.js + mecab-ipadic.", english_text: "" };
   }
@@ -381,8 +384,76 @@
     return out.slice(0, 5);
   }
 
+  /* ---------- editing support: segmentation, re-analysing a chosen range, candidates, look-up ---------- */
+  const clsOfPos = c => { c = c || []; return c.includes("prt") || c.includes("conj") ? "particle" : c.includes("aux") ? "aux" : c.some(x => /^v/.test(x)) ? "verb" : c.some(x => /^adj/.test(x)) ? "adj" : c.includes("adv") ? "adv" : c.includes("pn") ? "pron" : "noun"; };
+  const posLabel = c => { c = c || []; return c.includes("prt") ? "particle" : c.includes("conj") ? "conjunction" : c.includes("aux") ? "ending" : c.some(x => /^v/.test(x)) ? "verb" : c.includes("adj-na") ? "adjective (na)" : c.some(x => /^adj/.test(x)) ? "adjective" : c.includes("adv") ? "adverb" : c.includes("pn") ? "pronoun" : c.includes("ctr") ? "counter" : c.includes("suf") ? "suffix" : c.length ? "noun" : ""; };
+  function mkTok(k, s0) {
+    const surf = k.surface_form, reading = k.reading && k.reading !== "*" ? k.reading : surf;
+    let rm = romaji(reading);
+    if (k.pos === "助詞" && surf === "は") rm = "wa"; if (k.pos === "助詞" && surf === "を") rm = "o"; if (k.pos === "助詞" && surf === "へ") rm = "e";
+    if (k.pos === "記号") rm = surf;
+    return { s: s0, e: s0 + surf.length, text: surf, reading: toHira(reading), romaji: rm, cls: k.pos_detail_1 === "固有名詞" ? "propn" : (CLS[k.pos] || "other"), k };
+  }
+  function tokensFromRaw(raw, base) { let pos = base || 0; return raw.map((k, i) => { const t = mkTok(k, pos); t.ri = i; pos = t.e; return t; }); }
+  async function segmentText(text) {
+    const tok = await getTok(), raw = [], tokens = []; let cursor = 0;
+    for (const sent of splitSentences(text)) {
+      const base = Math.max(0, text.indexOf(sent, cursor)); cursor = base + sent.length;
+      const r = tok.tokenize(sent), ts = tokensFromRaw(r, base); ts.forEach(t => { t.ri += raw.length; tokens.push(t); }); r.forEach(k => raw.push(k));
+    }
+    return { raw, tokens };
+  }
+  const uniq = list => { const seen = new Set(), out = []; list.forEach(g => { const key = g.toLowerCase(); if (g && !seen.has(key)) { seen.add(key); out.push(g); } }); return out; };
+  // analyse text[s,e) as ONE word, using the original tokens `def` for readings
+  async function analyzeSegment(text, s0, e0, def) {
+    const dict = await getJa(), extra = await getExtra().catch(() => ({})), t = text.slice(s0, e0), inner = (def || []).filter(x => x.s >= s0 && x.e <= e0);
+    const aligned = inner.length > 0 && inner[0].s === s0 && inner[inner.length - 1].e === e0, single = aligned && inner.length === 1;
+    let reading, entry = dict[t] || extra[t], senses = [], cls = "other", pos = "", parts = null, ri, k = null, gloss;
+    if (aligned) reading = inner.map(x => x.reading).join("");
+    else { const tk = await getTok(); reading = tk.tokenize(t).map(x => toHira(x.reading && x.reading !== "*" ? x.reading : x.surface_form)).join(""); }
+    if (single) { k = inner[0].k; ri = inner[0].ri; cls = inner[0].cls; }
+    if (single && k) { senses = await meaning(k); pos = k.pos === "助詞" ? "particle" : k.pos === "助動詞" ? "ending" : posLabel(entry ? parseEntry(entry)[0].pos : []); }
+    else if (PARTICLE[t] || (AUX[t] && !entry)) { senses = [PARTICLE[t] || AUX[t]]; cls = PARTICLE[t] ? "particle" : "aux"; pos = PARTICLE[t] ? "particle" : "ending"; }   // grammar words keep their short tags
+    else if (entry) {
+      const ps = parseEntry(entry); senses = uniq(ps.map(x => shortGloss(x.g))); cls = clsOfPos(ps[0].pos); pos = posLabel(ps[0].pos);
+      if (ps[0].r) reading = ps[0].r;                                                  // a dictionary word: use its own reading
+    } else if (aligned && inner.length > 1) {
+      parts = inner.map(x => x.text); const gl = await Promise.all(inner.map(x => x.k ? meaning(x.k) : Promise.resolve([x.text])));
+      senses = [gl.map(g => g[0] || "?").join(" + ")];
+    }
+    let rm = romaji(reading); if (single && inner[0].romaji) rm = inner[0].romaji;
+    if (!senses.length) { gloss = "[" + rm + "]"; } else gloss = senses[0];
+    return { s: s0, e: e0, text: t, reading, romaji: rm, cls, pos, senses, gloss, known: !!entry || single, parts, k, ri, edited: !(single && inner[0]) };
+  }
+  // meanings for every token of a heard line (neighbour rules for untouched tokens; dictionary lookup for edited ones)
+  async function translateTokens(raw, tokens) {
+    const dict = await getJa(), res = analyzeRaw(raw, dict, true);
+    return tokens.map(t => t.ri !== undefined && !t.edited && res.literal[t.ri] ? { gloss: res.literal[t.ri].text, senses: res.alts[t.ri] || [res.literal[t.ri].text] } : null);
+  }
+  // dictionary words that can start at text[s0]
+  async function candidates(text, s0) {
+    const dict = await getJa(), extra = await getExtra().catch(() => ({})), out = [];
+    for (let n = Math.min(12, text.length - s0); n >= 1; n--) {
+      const w = text.substr(s0, n); if (/[。、！？!?「」『』（）()\s]/.test(w)) continue;
+      const e = dict[w] || extra[w]; if (e) { const p = parseEntry(e)[0]; out.push({ text: w, gloss: shortGloss(p.g), reading: p.r || "" }); }
+    }
+    return out;
+  }
+  // free look-up: exact word, words starting with it, or an English word
+  async function lookup(q) {
+    q = (q || "").trim(); if (!q) return { kind: "none" };
+    if (/^[\x00-\x7f]+$/.test(q)) {
+      const rev = await getEn(), key = q.toLowerCase().replace(/^to /, ""), hit = rev[key];
+      return hit && hit.length ? { kind: "english", q, items: hit.map(x => ({ text: x[0], reading: x[1] })) } : { kind: "none", q };
+    }
+    const dict = await getJa(), extra = await getExtra().catch(() => ({})), e = dict[q] || extra[q];
+    if (e) { const ps = parseEntry(e); return { kind: "exact", q, reading: ps[0].r || "", pos: posLabel(ps[0].pos), senses: uniq(ps.map(x => shortGloss(x.g))) }; }
+    const more = [...Object.keys(dict), ...Object.keys(extra)].filter(k => k.startsWith(q)).sort((a, b) => a.length - b.length || a.localeCompare(b)).slice(0, 8).map(k => ({ text: k, gloss: shortGloss(parseEntry(dict[k] || extra[k])[0].g) }));
+    return more.length ? { kind: "prefix", q, items: more } : { kind: "none", q };
+  }
+
   window.WordhueLocal = {
-    ja2en, en2ja, romaji, furi, context, resetContext, snapshot, restore, readings, meaning, warmTok: () => getTok(), warmDict: () => getJa(),
+    ja2en, en2ja, romaji, furi, context, resetContext, snapshot, restore, readings, meaning, segmentText, tokensFromRaw, analyzeSegment, translateTokens, candidates, lookup, fu: (t, r) => furi(t, r).filter(p => p[1]).map(p => p[1]).join(""), warmTok: () => getTok(), warmDict: () => getJa(),
     detect: t => (KANJI.test(t) || KANA.test(t)) ? "ja" : "en",
     warm: () => Promise.all([getTok(), getJa()])
   };

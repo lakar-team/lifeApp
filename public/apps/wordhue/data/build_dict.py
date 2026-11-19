@@ -105,6 +105,15 @@ for w,lst in W.items():
     gl="|".join(x[0][:70] for x in ss); ps="|".join(",".join(x[1]) for x in ss); fl="|".join(x[2] for x in ss)
     rd="|".join(x[3] for x in ss)
     OUT[w]=[gl,ps,fl,rd]
+# everything else (rarer words, names, compounds): first sense only, loaded on demand by the word card.
+# Cloudflare Pages allows 25 MiB per file, so it is written as three shards.
+EXTRA={}
+for w,lst in W.items():
+    if w in OUT: continue
+    lst.sort(key=lambda x:x[0])
+    x=lst[0][1][0]
+    g=x[0].split("; ")[0]; g2=re.sub(r"\s*\([^)]*\)","",g).strip() or g
+    EXTRA[w]=[g2[:48].strip(),",".join(x[1]),"",x[3]]
 rev={}
 for k,lst in R.items():
     lst.sort(); seen=set(); top=[]
@@ -114,5 +123,9 @@ for k,lst in R.items():
         if len(top)==3: break
     rev[k]=top
 json.dump({"w":OUT}, open(out+'/ja.json','w',encoding='utf-8'),ensure_ascii=False,separators=(',',':'))
+keys=sorted(EXTRA); n=3
+for i in range(n):
+    part={k:EXTRA[k] for k in keys[i::n]}
+    json.dump({"w":part}, open(out+f'/ja-extra-{i}.json','w',encoding='utf-8'),ensure_ascii=False,separators=(',',':'))
 json.dump({"r":rev}, open(out+'/en.json','w',encoding='utf-8'),ensure_ascii=False,separators=(',',':'))
-print(len(OUT),len(rev))
+print(len(OUT),len(EXTRA),len(rev))
