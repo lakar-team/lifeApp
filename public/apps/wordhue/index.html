@@ -79,7 +79,10 @@ button:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px sol
 .tok .ro{font-family:var(--mono);font-size:11px;color:var(--dim)}
 .tok .gl{font-size:12px;font-weight:500;margin-top:1px;max-width:9em;overflow-wrap:anywhere}
 .tok.tag .gl{font-weight:400;opacity:.8;font-size:11px}
-.tok.alt .gl{border-bottom:1px dotted var(--dim2);cursor:pointer}
+.srcline{font-size:13px;color:var(--dim);margin:0 0 6px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.qp .qalts{display:flex;flex-wrap:wrap;gap:5px;align-items:center;font-size:11px;color:var(--dim2)}
+.qp .qalts button{padding:3px 8px;border-radius:7px;background:var(--panel2);font-family:var(--jp);font-size:14px;color:var(--fg)}
+.qp .qalts button:hover{outline:1px solid var(--accent)}
 .no-furi .fu{visibility:hidden}.no-roma .ro{display:none}.no-lit .gl{display:none}
 .c-noun{color:var(--noun)}.c-pron{color:var(--pron)}.c-verb{color:var(--verb)}.c-aux{color:var(--aux)}.c-adj{color:var(--adj)}.c-adv{color:var(--adv)}.c-prt{color:var(--prt)}.c-punct{color:var(--punct)}
 .pop{position:absolute;z-index:6;top:100%;left:50%;transform:translateX(-50%);margin-top:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:8px;min-width:150px;text-align:left;color:var(--fg)}
@@ -367,7 +370,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   }
 
   /* ================= conversation feed ================= */
-  // item: { kind: "ja" | "en" | "text" | "pending", s, raw, meta: {dur, t} }
+  // item: { kind: "text" | "pending", raw, text, tk (word list), def, kr, tr (meanings shown), en (typed English), srcText, meta: {dur, t} }
   let items = [], stash = null, toastT = null, busyMsg = "";
   let hist = [], forced = new Set(), forcedGloss = {}, remember = true, card = null;   // card = { id, start, info, cands, res, q }
   const model = { loading: false, pct: 0, label: "", error: "" };
@@ -377,12 +380,6 @@ textarea#txt{max-height:132px;overflow-y:auto}
     const open = card && card.id === item.id && card.start === t.s;
     return `<span class="tok c-${t.cls}${tag ? " tag" : ""}${open ? " open" : ""}${t.edited || t.picked ? " edited" : ""}${punct ? "" : " tk"}" data-it="${item.id}" data-ti="${i}"><span class="fu">${fu ? esc(fu) : "&nbsp;"}</span><span class="ja">${esc(t.text)}</span><span class="ro">${punct ? "&nbsp;" : esc(t.romaji)}</span><span class="gl">${punct ? "&nbsp;" : esc(g)}</span></span>`;
   }
-  function tokEn(item, i) {
-    const s = item.s, w = s.src[i], j = s.jp.find(x => x.id === w.id);
-    const fu = j && j.furi ? j.furi.filter(p => p[1]).map(p => p[1]).join("") : "";
-    const has = j && j.alts && j.alts.length;
-    return `<span class="tok c-${j ? j.cls : "det"}${j ? "" : " blank tag"}${has ? " alt" : ""}" data-it="${item.id}" data-ti="${i}"><span class="fu">${fu ? esc(fu) : "&nbsp;"}</span><span class="ja">${j ? esc(j.text) : "&nbsp;"}</span><span class="ro">${j && j.cls !== "punct" ? esc(j.romaji) : "&nbsp;"}</span><span class="gl">${j && j.cls === "punct" ? "&nbsp;" : esc(w.text)}</span></span>`;
-  }
   function metaHtml(item) {
     const m = item.meta || {};
     return `<div class="meta">${m.dur ? `<span class="dur">${m.dur.toFixed(1)} s</span>` : ""}<span>${esc(m.t || "")}</span>${item.kind === "pending" ? "" : `<button class="more" data-more="${item.id}" aria-label="Line options">⋯</button>`}</div>`;
@@ -390,17 +387,12 @@ textarea#txt{max-height:132px;overflow-y:auto}
   function itemHtml(item) {
     if (item.kind === "pending")
       return `<article class="line pending" data-id="${item.id}">${metaHtml(item)}<div class="untrans"><span class="nat-wait">transcribing…</span></div></article>`;
-    if (item.kind === "text" || item.kind === "ja") {
-      if (!item.tk) return `<article class="line" data-id="${item.id}">${metaHtml(item)}<div class="untrans"><span>${esc(item.raw)}</span></div>${item.kind === "text" ? `<div class="untrans"><button data-trans="${item.id}">Translate</button></div>` : ""}</article>`;
-      const toks = item.tk.map((_, i) => tokTk(item, i)).join("");
-      const btn = item.kind === "text" ? `<div class="untrans"><button data-trans="${item.id}">${item.tr ? "Hide meanings" : "Translate"}</button></div>` : "";
-      const w = item.s && item.s.warnings && item.s.warnings.length ? `<div class="warn">${item.s.warnings.length} word${item.s.warnings.length > 1 ? "s" : ""} not in the dictionary: ${esc(item.s.warnings.map(x => x.replace(/ (is not in|not found).*$/, "")).join(", "))}</div>` : "";
-      return `<article class="line${item.tr ? " tr" : ""}" data-id="${item.id}">${metaHtml(item)}<div class="inter">${toks}</div>${btn}${w}</article>`;
-    }
-    const s = item.s, n = item.kind === "en" ? s.src.length : s.tokens.length;
-    let toks = ""; for (let i = 0; i < n; i++) toks += item.kind === "en" ? tokEn(item, i) : tokJa(item, i);
-    const warn = s.warnings && s.warnings.length ? `<div class="warn">${s.warnings.length} word${s.warnings.length > 1 ? "s" : ""} not in the dictionary: ${esc(s.warnings.map(x => x.replace(/ (is not in|not found).*$/, "")).join(", "))}</div>` : "";
-    return `<article class="line" data-id="${item.id}">${metaHtml(item)}<div class="inter">${toks}</div>${warn}</article>`;
+    if (!item.tk) return `<article class="line" data-id="${item.id}">${metaHtml(item)}<div class="untrans"><span>${esc(item.raw)}</span></div><div class="untrans"><button data-trans="${item.id}">Translate</button></div></article>`;
+    const toks = item.tk.map((_, i) => tokTk(item, i)).join("");
+    const btn = item.en ? "" : `<div class="untrans"><button data-trans="${item.id}">${item.tr ? "Hide meanings" : "Translate"}</button></div>`;
+    const src = item.srcText ? `<div class="srcline">${esc(item.srcText)}</div>` : "";
+    const w = item.warnings && item.warnings.length ? `<div class="warn">${item.warnings.length} word${item.warnings.length > 1 ? "s" : ""} not in the dictionary: ${esc(item.warnings.join(", "))}</div>` : "";
+    return `<article class="line${item.tr ? " tr" : ""}" data-id="${item.id}">${metaHtml(item)}${src}<div class="inter">${toks}</div>${btn}${w}</article>`;
   }
   function liveHtml() {
     if (listening && model.loading) return `<div class="live"><span class="pulse"></span><span>Getting the speech model ready. Listening already; lines appear when it is done.</span><span class="livebar"><i style="width:${model.pct}%"></i></span><span>${model.pct}%</span></div>`;
@@ -449,12 +441,12 @@ textarea#txt{max-height:132px;overflow-y:auto}
   function setStatus(msg, err) { const el = $("#status"); el.textContent = msg || ""; el.className = "status" + (err ? " err" : ""); }
 
   /* ================= word card: fix a meaning, join or split words, other ways to cut, look up ================= */
-  const snapState = () => ({ tk: items.filter(x => x.tk).map(x => [x, x.tk.map(t => ({ ...t })), x.tr]), forced: new Set(forced), fg: { ...forcedGloss } });
+  const snapState = () => ({ tk: items.filter(x => x.tk).map(x => [x, x.tk.map(t => ({ ...t })), x.tr, x.text, x.def]), forced: new Set(forced), fg: { ...forcedGloss } });
   const pushHist = () => { hist.push(snapState()); if (hist.length > 50) hist.shift(); };
   const curTok = () => { if (!card) return null; const it = items.find(x => x.id === card.id); if (!it || !it.tk) return null; const i = it.tk.findIndex(t => t.s === card.start); return i < 0 ? null : { it, i, t: it.tk[i] }; };
   function undo() {
     const h = hist.pop(); if (!h) return;
-    h.tk.forEach(([it, tk, tr]) => { it.tk = tk; it.tr = tr; }); forced = h.forced; forcedGloss = h.fg;
+    h.tk.forEach(([it, tk, tr, text, def]) => { it.tk = tk; it.tr = tr; it.text = text; it.def = def; }); forced = h.forced; forcedGloss = h.fg;
     if (card) { const it = items.find(x => x.id === card.id); if (!it || !it.tk) card = null; else if (!it.tk.some(t => t.s === card.start)) { const t = it.tk.filter(t => t.s <= card.start).pop(); card.start = t ? t.s : 0; } }
     render(); if (card) refreshCard(); else $("#cardLayer").innerHTML = "";
     toast("Undone");
@@ -471,7 +463,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
     it.tk = out;
   }
   async function applyForced(it) {                     // your joins from earlier in this conversation
-    if (!it.tk || !forced.size) return false; let changed = false;
+    if (!it.tk || !forced.size || it.en) return false; let changed = false;
     for (const w of forced) { let i = it.text.indexOf(w); while (i >= 0) { if (!it.tk.some(t => t.s === i && t.e === i + w.length)) { await replaceRange(it, i, i + w.length); changed = true; } i = it.text.indexOf(w, i + w.length); } }
     return changed;
   }
@@ -509,6 +501,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
       <header><div><div class="big">${esc(t.text)}</div><div class="sub"><span>${esc(t.reading || "")}</span><span>·</span><span style="font-family:var(--mono)">${esc(t.romaji || "")}</span>${info && info.pos ? `<span class="chip">${esc(info.pos)}</span>` : ""}${info && info.parts ? `<span class="chip">joined: ${info.parts.map(esc).join(" + ")}</span>` : ""}${info && info.base ? `<span class="chip">form of ${esc(info.base)}${info.form ? " · " + esc(info.form) : ""}${info.tags && info.tags.length ? " " + info.tags.map(esc).join("") : ""}</span>` : ""}</div></div>
         <span class="hd"><button class="undo" id="cUndo" ${hist.length ? "" : "disabled"} title="Undo the last change (Ctrl+Z)">↶ Undo${hist.length ? " · " + hist.length : ""}</button><button class="x" id="cClose" aria-label="Close">×</button></span></header>
       <div class="sec"><h4>Meaning</h4><div class="opts">${opts}</div></div>
+      ${t.alts && t.alts.length ? `<div class="sec"><h4>Other words for “${esc(t.en || "")}”</h4><div class="crow">${t.alts.slice(0, 6).map((a, n) => `<button class="cand" data-alt="${n}"><span class="jp">${esc(a[0])}</span><small>${esc(a[1] || "")}</small></button>`).join("")}</div></div>` : ""}
       <div class="sec"><h4>Join or split</h4><div class="crow">${jn(prev, "prev")}${jn(next, "next")}</div><div class="crow" style="margin-top:6px">${splits}</div></div>
       <div class="sec"><h4>Words that start here</h4><div class="crow">${cands}</div></div>
       <div class="sec"><h4>Look up</h4><div class="csearch"><input id="cq" value="${esc(q)}" aria-label="Look up" spellcheck="false"><button class="pill" id="cGo">Search</button></div>${res}</div>
@@ -576,6 +569,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
     const chips = (info.pos ? `<span class="chip">${esc(info.pos)}</span>` : "") + (info.base ? ` <span class="chip">form of ${esc(info.base)}${info.form ? " · " + esc(info.form) : ""}</span>` : "");
     box.innerHTML = `<div class="qh"><b>${esc(t.text)}</b><span>${esc(t.reading || "")}</span><span class="mono">${esc(t.romaji || "")}</span>${chips}</div>
       <div class="qopts">${senses.length ? senses.map((g, n) => `<button class="qopt${g === cur ? " sel" : ""}" data-qs="${n}">${esc(g)}${n === 0 ? "<small>most common</small>" : ""}</button>`).join("") : `<div class="nat-wait">Not in the offline dictionary.</div>`}</div>
+      ${t.alts && t.alts.length ? `<div class="qalts"><span>Other words for “${esc(t.en || "")}”:</span>${t.alts.slice(0, 5).map((a, n) => `<button data-qalt="${n}">${esc(a[0])}</button>`).join("")}</div>` : ""}
       <div class="qfoot"><span>Wrong cut? Join, split or look up.</span><button class="qmore" data-qopen="1">Open panel ▸</button></div>`;
     qp.senses = senses; placeQuick(box, el);
   }
@@ -585,25 +579,45 @@ textarea#txt{max-height:132px;overflow-y:auto}
   let sessionT0 = Date.now();
   async function translate(text, meta, at) {
     const dir = meta && meta.heard ? "ja" : S.dir;
-    const busy = m => setStatus(m);
     try {
-      if (dir === "en") { const r = await L.en2ja(text, busy); addItems(r.sentences.map(s => ({ kind: "en", s, meta: meta ? { ...meta } : null })), at); }
-      else { const r = await L.ja2en(text, busy); const made = r.sentences.map(s => mkJaItem(s, meta)); addItems(made, at); made.forEach(it => applyForced(it).then(ch => { if (ch) render(); })); }
+      if (dir === "en") {
+        const r = await L.en2ja(text, m => setStatus(m));
+        addItems(r.sentences.map(sn => mkEnItem(sn, meta)), at);
+      } else await addReadingLine(text, meta, at, { translate: true });
       setStatus("");
     } catch (e) { setStatus("Couldn’t load the dictionary: " + e.message, true); toast("Dictionary failed to load. Check your connection and try again."); }
   }
-
-  function mkJaItem(s, meta) {
-    const text = s.tokens.map(t => t.text).join(""), def = L.tokensFromRaw(s.raw);
-    const tk = def.map((d, i) => ({ ...d, cls: s.tokens[i].cls, romaji: s.tokens[i].romaji, gloss: s.literal[i].text, senses: s.alts && s.alts[i] ? s.alts[i] : [s.literal[i].text] }));
-    return { kind: "ja", s, text, kr: s.raw, def, tk, tr: true, meta: meta ? { ...meta } : null };
+  // typed English → Japanese words in the same word-column format (the English words become the meanings)
+  function mkEnItem(sn, meta) {
+    let pos = 0; const tk = [];
+    sn.src.forEach(w => {
+      const j = sn.jp.find(x => x.id === w.id); if (!j) return;                       // "the", "a": no Japanese word
+      const punct = j.cls === "punct", t = j.text;
+      tk.push({ s: pos, e: pos + t.length, text: t, reading: punct ? "" : (j.kana || ""), romaji: punct ? "" : j.romaji, cls: j.cls, gloss: punct ? "" : w.text, alts: j.alts || [], en: w.text });
+      pos += t.length;
+    });
+    const text = tk.map(t => t.text).join(""), src = sn.src.map(t => t.text).join(" ").replace(/ ([.,?!])/g, "$1");
+    return { kind: "text", en: true, srcText: src, raw: text, text, def: tk.map(t => ({ ...t })), tk, tr: true, warnings: sn.warnings || [], meta: meta ? { ...meta } : null };
   }
-  // heard line without translation: show it immediately, then add kana + romaji (a few ms once the tokenizer is ready)
-  function addReadingLine(text, meta, at) {
-    const item = { kind: "text", raw: text, text, meta, tr: false };
+  function swapAlt(it, i, n) {                         // choose another Japanese word for an English word
+    const t = it.tk[i], alt = t.alts[n]; if (!alt) return;
+    pushHist(); const old = [t.text, t.reading];
+    t.text = alt[0]; t.reading = alt[1] || ""; t.romaji = L.romaji(t.reading); t.alts = [old, ...t.alts.filter((_, k) => k !== n)]; t.senses = undefined; t.picked = true;
+    let pos = 0; it.tk.forEach(x => { x.s = pos; x.e = pos + x.text.length; pos = x.e; });
+    it.text = it.tk.map(x => x.text).join(""); it.def = it.tk.map(x => ({ ...x }));
+    if (card && card.id === it.id) card.start = t.s;
+    render(); if (card) refreshCard();
+  }
+  // a line of Japanese: show it at once, then the word list (kana, romaji; meanings too when opts.translate)
+  function addReadingLine(text, meta, at, opts) {
+    const item = { kind: "text", raw: text, text, meta: meta ? { ...meta } : null, tr: false };
     addItems([item], at);
-    if (L.detect(text) !== "ja") return;
-    L.segmentText(text).then(async r => { item.kr = r.raw; item.def = r.tokens; item.tk = r.tokens.map(t => ({ ...t })); render(); if (await applyForced(item)) render(); }).catch(() => {});
+    if (L.detect(text) !== "ja") return Promise.resolve();
+    return L.segmentText(text).then(async r => {
+      item.kr = r.raw; item.def = r.tokens; item.tk = r.tokens.map(t => ({ ...t })); render();
+      if (await applyForced(item)) render();
+      if (opts && opts.translate) { await ensureGlosses(item); item.tr = true; render(); }
+    }).catch(() => {});
   }
 
   /* ================= listening (audio capture + Whisper) ================= */
@@ -861,8 +875,8 @@ textarea#txt{max-height:132px;overflow-y:auto}
     try { await navigator.clipboard.writeText(txt); toast("Copied"); }
     catch (_) { const ta = document.createElement("textarea"); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); toast("Copied"); } catch (e) { toast("Couldn’t copy"); } ta.remove(); }
   }
-  const jaOf = it => it.kind === "en" ? it.s.jp.map(t => t.text).join("") : (it.text || it.raw);
-  const enOf = it => it.kind === "en" ? it.s.src.map(t => t.text).join(" ").replace(/ ([.,?!])/g, "$1") : (it.tk && it.tr) ? it.tk.filter(t => t.gloss && !/^[\[(]/.test(t.gloss) && t.cls !== "punct").map(t => t.gloss).join(" ") : "";
+  const jaOf = it => it.text || it.raw;
+  const enOf = it => it.en ? it.srcText : (it.tk && it.tr) ? it.tk.filter(t => t.gloss && !/^[\[(]/.test(t.gloss) && t.cls !== "punct").map(t => t.gloss).join(" ") : "";
 
   $("#listen").onclick = () => listening ? stopListening() : startListening();
   $("#newchat").onclick = () => {
@@ -934,23 +948,12 @@ textarea#txt{max-height:132px;overflow-y:auto}
       (async () => { if (!it.tr) await ensureGlosses(it); it.tr = !it.tr; render(); })();
       return;
     }
-    const opt = e.target.closest(".pop button");
-    if (opt) { const it = byId(opt.dataset.it), i = +opt.dataset.ti, k = +opt.dataset.k;
-      if (it.kind === "ja") { const g = it.s.alts[i][k]; it.s.literal[i].text = g; const en = it.s.english.find(x => x.ids.length === 1 && x.ids[0] === i); if (en) en.text = g; }
-      else { const w = it.s.src[i], j = it.s.jp.find(x => x.id === w.id), all = j.all || (j.all = [[j.text, j.kana], ...j.alts]), [jp, rd] = all[k]; j.text = jp; j.kana = rd; j.romaji = L.romaji(rd); j.furi = L.furi(jp, rd); }
-      render(); return; }
-    $$(".pop").forEach(p => p.remove()); $$(".tok.pin").forEach(x => x.classList.remove("pin"));
-    const tk = e.target.closest(".tok.alt"); if (!tk) return;
-    const it = byId(tk.dataset.it), i = +tk.dataset.ti; let list, cur;
-    if (it.kind === "ja") { list = it.s.alts[i]; cur = it.s.literal[i].text; }
-    else { const j = it.s.jp.find(x => x.id === it.s.src[i].id); list = (j.all || [[j.text], ...j.alts]).map(a => a[0]); cur = j.text; }
-    tk.classList.add("pin"); const p = document.createElement("div"); p.className = "pop";
-    p.innerHTML = `<h5>Other meanings</h5>` + list.map((a, k) => `<button class="${a === cur ? "cur" : ""}" data-it="${it.id}" data-ti="${i}" data-k="${k}">${esc(a)}</button>`).join("");
-    tk.appendChild(p);
   });
   feed.addEventListener("dblclick", e => { const tkEl = e.target.closest(".tok.tk"); if (tkEl) { closeQuick(); openCard(+tkEl.dataset.it, +tkEl.dataset.ti); } });
   document.addEventListener("click", e => {
     if (!qp) return;
+    const qalt = e.target.closest("[data-qalt]");
+    if (qalt) { const it = items.find(x => x.id === qp.id), i = it && it.tk ? it.tk.findIndex(t => t.s === qp.start) : -1; closeQuick(); if (i >= 0) swapAlt(it, i, +qalt.dataset.qalt); return; }
     const open = e.target.closest("[data-qopen]"), pick = e.target.closest("[data-qs]");
     if (open) { const { id, start } = qp, it = items.find(x => x.id === id), i = it && it.tk ? it.tk.findIndex(t => t.s === start) : -1; closeQuick(); if (i >= 0) openCard(id, i); return; }
     if (pick) {
@@ -964,6 +967,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
     if (e.target.closest("#cUndo")) { undo(); return; }
     if (e.target.closest("#cClose") || e.target.id === "cScrim") { closeCard(); return; }
     const sense = e.target.closest("[data-sense]"); if (sense) { doSense(+sense.dataset.sense); return; }
+    const altb = e.target.closest("[data-alt]"); if (altb) { const c = curTok(); if (c) swapAlt(c.it, c.i, +altb.dataset.alt); return; }
     const join = e.target.closest("[data-join]"); if (join) { doJoin(join.dataset.join); return; }
     const split = e.target.closest("[data-split]"); if (split) { doSplit(+split.dataset.split); return; }
     const cand = e.target.closest("[data-cand]"); if (cand) { doCand(cand.dataset.cand); return; }
