@@ -237,6 +237,10 @@ textarea#txt{max-height:132px;overflow-y:auto}
 .credits a{color:var(--accent)}
 .nat-wait{color:var(--dim2);font-style:italic;font-size:13px}
 .livebar{height:4px;border-radius:99px;background:var(--panel2);overflow:hidden;flex:1;min-width:60px}
+.warnbar{display:flex;align-items:center;gap:10px;background:var(--rec-soft);border:1px solid var(--rec);color:var(--rec);border-radius:10px;padding:8px 12px;font-size:13px}
+.warnbar span{flex:1;min-width:0;overflow-wrap:anywhere}
+.warnbar button{padding:4px 10px;border-radius:8px;background:var(--panel);color:var(--fg);font-size:12px}
+#diag{margin:0;font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--dim);white-space:pre-wrap;overflow-wrap:anywhere}
 .livebar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
 .set .seg button{white-space:nowrap}
 .seg{display:inline-flex;background:var(--panel2);border-radius:8px;padding:2px}
@@ -300,6 +304,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
       <div class="set" id="srcSet"><span class="lab">Listen to</span>
         <div class="seg" data-key="source"><button data-v="computer" id="srcComputerBtn">Computer audio</button><button data-v="mic">Microphone</button></div>
         <span class="hint" id="srcHint"></span></div>
+      <div class="set"><span class="lab">Diagnostics</span><pre id="diag">…</pre></div>
       <div class="set"><span class="lab">Speech recognition</span>
         <span class="hint">Japanese, on your device (ReazonSpeech). About 160 MB, downloaded when the page opens. It is fast on short lines, so lines can be short.</span></div>
       <div class="set"><span class="lab">A pause of this length ends a line</span>
@@ -361,7 +366,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   // item: { kind: "ja" | "en" | "text" | "pending", s, raw, meta: {dur, t} }
   let items = [], stash = null, toastT = null, busyMsg = "";
   let hist = [], forced = new Set(), forcedGloss = {}, remember = true, card = null;   // card = { id, start, info, cands, res, q }
-  const model = { loading: false, pct: 0, label: "" };
+  const model = { loading: false, pct: 0, label: "", error: "" };
 
   function tokTk(item, i) {                       // one word column: furigana, Japanese, romaji, meaning (tap for the word card)
     const t = item.tk[i], punct = t.cls === "punct", fu = L.fu(t.text, t.reading), g = t.gloss === undefined ? "" : t.gloss, tag = /^[\[(]/.test(g) || punct;
@@ -395,7 +400,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   }
   function liveHtml() {
     if (listening && model.loading) return `<div class="live"><span class="pulse"></span><span>Getting the speech model ready. Listening already; lines appear when it is done.</span><span class="livebar"><i style="width:${model.pct}%"></i></span><span>${model.pct}%</span></div>`;
-    if (listening) return `<div class="live"><span class="pulse"></span><span>${pending > 0 ? "transcribing · " + (behindSec() > 2 ? behindSec() + " s behind" : "keeping up") : "listening to " + srcLabel + "…"}</span></div>`;
+    if (listening) return `<div class="live"><span class="pulse"></span><span class="livebar" style="flex:none;width:70px;min-width:70px"><i id="lvl" style="background:var(--prt)"></i></span><span>${pending > 0 ? "transcribing · " + (behindSec() > 2 ? behindSec() + " s behind" : "keeping up") : "listening to " + srcLabel + "…"}</span></div>`;
     if (items.length) return `<div class="live idle"><span class="pulse"></span><span>Paused. Press Listen to continue this conversation.</span></div>`;
     return "";
   }
@@ -409,10 +414,11 @@ textarea#txt{max-height:132px;overflow-y:auto}
     return `<div class="empty"><h2>${canComputer ? "Translate whatever your PC is playing" : "Translate what you hear"}</h2><p>Words appear as they are spoken, each with its reading. Tap a word for its meaning.</p>
       <div class="startrow">${pc}${mic}</div>${note}<p style="margin:10px 0 0;font-size:12px">Or type below to translate text.</p></div>`;
   }
+  const errHtml = () => model.error ? `<div class="warnbar"><span>Speech model problem: ${esc(model.error)}</span><button data-retry-asr="1">Retry</button></div>` : "";
   function render() {
     const near = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80, prevTop = feed.scrollTop;
     if (!items.length && !listening) feed.innerHTML = emptyHtml();
-    else feed.innerHTML = items.map(itemHtml).join("") + liveHtml();
+    else feed.innerHTML = errHtml() + items.map(itemHtml).join("") + liveHtml();
     const c = L.context(), words = c.words.slice(0, 4);
     $("#topicTxt").textContent = items.length ? "Conversation" : "New conversation";
     $("#topicChip").textContent = words.length ? "topic: " + words.join(", ") : ""; $("#topicChip").hidden = !words.length;
@@ -616,7 +622,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   }
   function ensureAsr() {
     if (asrP) return asrP;
-    prog.asr = 0; model.loading = true; model.pct = 0; render();
+    prog.asr = 0; model.loading = true; model.pct = 0; model.error = ""; render();
     asrP = new Promise((resolve, reject) => {
       try { asrWorker = new Worker("asr-worker.js"); } catch (e) { reject(e); return; }
       asrWorker.onmessage = ev => {
@@ -628,7 +634,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
       };
       asrWorker.onerror = ev => reject(new Error(ev.message || "the speech worker failed to start"));
       asrWorker.postMessage({ type: "init", base: MODEL_BASE, vendor: new URL("vendor/sherpa/", location.href).href, fresh: FRESH });
-    }).then(v => { model.loading = false; if (listening) render(); return v; }).catch(e => { model.loading = false; asrP = null; throw e; });
+    }).then(v => { model.loading = false; if (listening) render(); return v; }).catch(e => { model.loading = false; model.error = e.message || String(e); asrP = null; render(); throw e; });
     return asrP;
   }
   function transcribe(audio) {                       // → { text, ms }
@@ -647,6 +653,58 @@ textarea#txt{max-height:132px;overflow-y:auto}
   }
   const workletSrc = `class P extends AudioWorkletProcessor{process(i){const c=i[0];if(c&&c[0])this.port.postMessage(c[0].slice());return true}}registerProcessor('cap',P)`;
 
+  /* iPhone / Safari notes: an AudioContext only runs if it is created (or resumed) inside the tap that started it, so it is
+     created at the top of startListening, before any await. Its sample rate may not be 16 kHz, so we resample ourselves. */
+  let inRate = SR, rsBuf = new Float32Array(0), rsPos = 0, agg = [], aggLen = 0, wdT = null;
+  const diag = { chunks: 0, peak: 0, state: "", rate: 0, via: "-" };
+  function resample(chunk) {                         // any input rate → 16 kHz (averaging, then picking samples)
+    const ratio = inRate / SR; if (Math.abs(ratio - 1) < 1e-6) return chunk;
+    const buf = new Float32Array(rsBuf.length + chunk.length); buf.set(rsBuf); buf.set(chunk, rsBuf.length);
+    const out = [], half = ratio / 2; let pos = rsPos;
+    while (pos + half + 1 < buf.length) {
+      const a = Math.max(0, Math.floor(pos - half)), b = Math.min(buf.length - 1, Math.ceil(pos + half));
+      let sum = 0; for (let i = a; i <= b; i++) sum += buf[i];
+      out.push(sum / (b - a + 1)); pos += ratio;
+    }
+    const keep = Math.max(0, Math.floor(pos - half) - 1);
+    rsBuf = buf.slice(keep); rsPos = pos - keep;
+    return Float32Array.from(out);
+  }
+  function feedIn(chunk) {
+    diag.chunks++;
+    const out = resample(chunk); if (!out.length) return;
+    agg.push(out); aggLen += out.length;
+    if (aggLen >= 2048) { const all = new Float32Array(aggLen); let o = 0; for (const a of agg) { all.set(a, o); o += a.length; } agg = []; aggLen = 0; onAudio(all); }
+  }
+  async function openAudio(st) {
+    inRate = ctx.sampleRate; diag.rate = inRate; diag.chunks = 0; diag.peak = 0; rsBuf = new Float32Array(0); rsPos = 0; agg = []; aggLen = 0;
+    const src = ctx.createMediaStreamSource(new MediaStream(st.getAudioTracks()));
+    let ok = false;
+    if (ctx.audioWorklet && typeof AudioWorkletNode !== "undefined") {
+      try {
+        await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([workletSrc], { type: "application/javascript" })));
+        node = new AudioWorkletNode(ctx, "cap"); node.port.onmessage = e => feedIn(e.data); src.connect(node); diag.via = "AudioWorklet"; ok = true;
+      } catch (_) { try { node && node.disconnect(); } catch (__) {} node = null; }
+    }
+    if (!ok) {                                        // older Safari: no AudioWorklet
+      const sp = ctx.createScriptProcessor(4096, 1, 1), mute = ctx.createGain(); mute.gain.value = 0;
+      sp.onaudioprocess = ev => feedIn(ev.inputBuffer.getChannelData(0).slice());
+      src.connect(sp); sp.connect(mute); mute.connect(ctx.destination); node = sp; diag.via = "ScriptProcessor";
+    }
+    ctx.onstatechange = () => { diag.state = ctx ? ctx.state : ""; if (listening && ctx && ctx.state !== "running") ctx.resume().catch(() => {}); };
+  }
+  function watchdog() {                              // tell the user, instead of staying silent, if nothing arrives
+    clearTimeout(wdT); const at = diag.chunks;
+    wdT = setTimeout(() => {
+      if (!listening) return;
+      if (diag.chunks === at) {
+        if (ctx && ctx.state !== "running") ctx.resume().catch(() => {});
+        toast(`No sound is reaching the page (audio engine: ${ctx ? ctx.state : "none"}).`, { label: "Try again", fn: () => { stopListening(); startListening(S.source); } });
+      } else if (diag.peak < 0.003) toast("The microphone is on but very quiet. Move closer or turn the volume up.");
+    }, 4000);
+  }
+  document.addEventListener("touchstart", () => { if (ctx && ctx.state !== "running") ctx.resume().catch(() => {}); }, { passive: true });
+
   let wake = null, srcLabel = "";
   async function keepAwake() { try { if (navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); } catch (_) {} }
   document.addEventListener("visibilitychange", () => { if (listening && document.visibilityState === "visible") keepAwake(); });
@@ -656,6 +714,8 @@ textarea#txt{max-height:132px;overflow-y:auto}
     if (source === "computer" && !canComputer) source = "mic";
     S.source = source; save(); applySettings();
     $("#listen").disabled = true;
+    let actx = null;
+    try { const AC = window.AudioContext || window.webkitAudioContext; actx = new AC(); if (actx.resume) actx.resume().catch(() => {}); } catch (_) {}     // inside the tap, before any await
     try {
       if (source === "mic") {
         stream = await md.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true, channelCount: 1 } });
@@ -669,16 +729,15 @@ textarea#txt{max-height:132px;overflow-y:auto}
         srcLabel = "computer audio";
       }
       // capture starts right away; lines queue up until the speech model is ready
-      ctx = new AudioContext({ sampleRate: SR });
-      await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([workletSrc], { type: "application/javascript" })));
-      node = new AudioWorkletNode(ctx, "cap");
-      ctx.createMediaStreamSource(new MediaStream(stream.getAudioTracks())).connect(node);
-      node.port.onmessage = e => onAudio(e.data);
+      ctx = actx; if (!ctx) throw new Error("This browser has no audio engine for capturing sound.");
+      await ctx.resume().catch(() => {}); diag.state = ctx.state;
+      await openAudio(stream);
       stream.getAudioTracks()[0].addEventListener("ended", stopListening);
       buf = []; bufLen = speech = silence = 0; secs = 0; sessionT0 = Date.now();
-      keepAwake(); setListening(true);
+      keepAwake(); setListening(true); watchdog();
       ensureAsr().catch(e => toast("Couldn’t load the speech model: " + e.message, { label: "Try again", fn: () => ensureAsr().catch(() => {}) }));
     } catch (e) {
+      if (!ctx && actx) { try { actx.close(); } catch (_) {} }
       cleanup(); setListening(false);
       const retry = { label: "Try again", fn: () => startListening(source) };
       if (e && e.name === "NotAllowedError") toast(source === "mic" ? "Microphone access was blocked. Allow it in the address bar, then try again." : "Sharing was cancelled.", retry);
@@ -700,6 +759,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
     try { wake && wake.release(); } catch (_) {} wake = null;
   }
   function stopListening() {
+    clearTimeout(wdT);
     if (listening && bufLen / SR >= MIN_SEG && speech >= MIN_SEG) flush();
     cleanup(); setListening(false);
   }
@@ -709,13 +769,17 @@ textarea#txt{max-height:132px;overflow-y:auto}
   let costEMA = 0;
   const keepUpMin = () => Math.min(12, Math.max(MIN_SEG, costEMA * 0.8));
   const keepUpMax = () => Math.min(25, Math.max(+S.max, Math.ceil(costEMA * 1.3)));
-  let meterTick = 0;
+  let meterTick = 0, noise = 0;
   function onAudio(chunk) {
     let sum = 0; for (let i = 0; i < chunk.length; i++) sum += chunk[i] * chunk[i];
     const rms = Math.sqrt(sum / chunk.length);
+    diag.peak = Math.max(diag.peak, rms);
+    noise = noise ? (rms < noise * 1.6 ? noise * 0.98 + rms * 0.02 : noise) : rms;                // slow estimate of the room's background level
+    const thr = Math.min(THRESH, Math.max(0.004, noise * 3));
+    const lv = $("#lvl"); if (lv) lv.style.width = Math.min(100, rms * 500) + "%";
     if ((meterTick++ & 3) === 0) $$("#meter b").forEach((x, i) => x.style.height = Math.min(100, 12 + rms * 700 * (0.5 + Math.random() * 0.7)) + "%");
     const dur = chunk.length / SR;
-    if (rms > THRESH) { speech += dur; silence = 0; } else silence += dur;
+    if (rms > thr) { speech += dur; silence = 0; } else silence += dur;
     if (speech === 0) return;
     buf.push(chunk); bufLen += chunk.length;
     const len = bufLen / SR, pause = +S.pause, mx = keepUpMax();
@@ -784,7 +848,19 @@ textarea#txt{max-height:132px;overflow-y:auto}
     const old = items, snap = L.snapshot(); items = []; L.resetContext(); queue.length = 0; epoch++; pending = 0; hist = []; forced = new Set(); forcedGloss = {}; card = null; app.classList.remove("has-card"); $("#cardLayer").innerHTML = ""; render();
     toast("Conversation cleared. Topic forgotten.", () => { items = old; L.restore(snap); render(); });
   };
-  const drawer = o => { $("#drawer").classList.toggle("open", o); $("#scrim").classList.toggle("open", o); };
+  let diagT = null;
+  function fillDiag() {
+    const el = $("#diag"); if (!el) return;
+    let simd = false; try { simd = WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11])); } catch (_) {}
+    el.textContent = [
+      "Audio engine: " + (ctx ? ctx.state : "not started") + " · " + diag.via + " · input " + (diag.rate || "-") + " Hz",
+      "Sound received: " + diag.chunks + " blocks · loudest " + diag.peak.toFixed(3) + " · background " + noise.toFixed(4),
+      "Speech model: " + (model.error ? "ERROR " + model.error : model.loading ? "loading " + model.pct + "%" : asrP ? "ready" : "not started"),
+      "WebAssembly: " + (typeof WebAssembly === "object" ? "yes" : "NO") + " · SIMD: " + (simd ? "yes" : "no") + " · Workers: " + (typeof Worker === "function" ? "yes" : "NO"),
+      "Browser: " + navigator.userAgent.replace(/^Mozilla\/5\.0 /, "").slice(0, 120)
+    ].join("\n");
+  }
+  const drawer = o => { $("#drawer").classList.toggle("open", o); $("#scrim").classList.toggle("open", o); clearInterval(diagT); if (o) { fillDiag(); diagT = setInterval(fillDiag, 1000); } };
   $("#gear").onclick = () => drawer(true); $("#closeDrawer").onclick = () => drawer(false); $("#scrim").onclick = () => drawer(false);
   document.addEventListener("keydown", e => { if (e.key === "Escape") { drawer(false); closeMenu(); $("#legendPop").hidden = true; if (card) closeCard(); closeQuick(); } });
   $$(".seg[data-key]").forEach(g => g.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S[g.dataset.key] = b.dataset.v; save(); applySettings(); }));
@@ -824,6 +900,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
         if (a.dataset.act === "cj") copyText(jaOf(it)); else if (a.dataset.act === "ce") copyText(enOf(it)); else { items = items.filter(x => x !== it); render(); } };
       return;
     }
+    if (e.target.closest("[data-retry-asr]")) { ensureAsr().catch(() => {}); return; }
     if (e.target.closest("#startComputer")) { startListening("computer"); return; }
     if (e.target.closest("#startMic")) { startListening("mic"); return; }
     const tkEl = e.target.closest(".tok.tk");
@@ -882,7 +959,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   else $("#freshNote").textContent = "Settings are remembered on this device.";
   applySettings(); render(); preload();
   if (!canComputer && !canMic) { $("#listen").disabled = true; setStatus("This browser can’t listen to audio. Try Chrome, Edge, Safari or Firefox over HTTPS.", true); }
-  window.WordhueTest = { items: () => items, openCard, undo, state: () => ({ hist: hist.length, forced: [...forced], card }), translate, addReadingLine, prog,
+  window.WordhueTest = { diag, items: () => items, openCard, undo, state: () => ({ hist: hist.length, forced: [...forced], card }), translate, addReadingLine, prog,
     setAsr(fn) { asrFake = async a => ({ text: (await fn(a)).text, ms: 0 }); asrP = Promise.resolve(true); },
     feedSamples(f32) { for (let i = 0; i < f32.length; i += 2048) onAudio(f32.slice(i, i + 2048)); },
     feed(sec, amp) { const n = Math.round(sec * SR / 2048); for (let i = 0; i < n; i++) onAudio(new Float32Array(2048).fill(amp)); },
