@@ -64,9 +64,7 @@ button:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px sol
 /* ---- line cards: interlinear ---- */
 .line{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px 12px}
 .line .meta{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:11px;color:var(--dim2);font-family:var(--mono)}
-.spk{width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;font-family:var(--sans);font-size:11px;font-weight:700;color:var(--accent-ink)}
-.spk.A{background:var(--noun)}.spk.B{background:var(--prt)}.spk.C{background:var(--aux)}
-.no-spk .spk,.no-dur .dur{display:none}
+.no-dur .dur{display:none}
 .more{margin-left:auto;padding:2px 8px;border-radius:6px;color:var(--dim2);letter-spacing:.1em}
 .more:hover{background:var(--panel2);color:var(--fg)}
 .inter{display:flex;flex-wrap:wrap;gap:2px 2px;align-items:flex-start}
@@ -84,9 +82,6 @@ button:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px sol
 .pop h5{margin:0 0 4px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim2);font-weight:600}
 .pop button{display:block;width:100%;text-align:left;padding:4px 6px;border-radius:6px;font-size:12px}
 .pop button:hover,.pop button.cur{background:var(--panel2)}
-.gist{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);font-size:15px;color:var(--fg);display:flex;flex-direction:column;gap:2px}
-.gist small{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim2);font-weight:600}
-.no-nat .gist{display:none}
 .live{border:1.5px dashed var(--line);border-radius:12px;padding:12px 14px;color:var(--dim);display:flex;align-items:center;gap:10px;font-size:13px}
 .pulse{width:9px;height:9px;border-radius:50%;background:var(--rec);animation:pulse 1.2s infinite}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
@@ -174,7 +169,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
 .warn{margin-top:8px;font-size:11px;color:var(--dim2)}
 .credits{font-size:11px;color:var(--dim2);line-height:1.6}
 .credits a{color:var(--accent)}
-.gist .nat-wait{color:var(--dim2);font-style:italic;font-size:13px}
+.nat-wait{color:var(--dim2);font-style:italic;font-size:13px}
 .livebar{height:4px;border-radius:99px;background:var(--panel2);overflow:hidden;flex:1;min-width:60px}
 .livebar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
 .set .seg button{white-space:nowrap}
@@ -183,7 +178,6 @@ textarea#txt{max-height:132px;overflow-y:auto}
 .seg button[aria-pressed="true"]{background:var(--panel);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.25)}
 .set.credits{display:block}
 .line.pending{border-style:dashed;opacity:.8}
-.gist + .untrans{margin-top:8px;justify-content:flex-end}
 .line .untrans{flex-wrap:wrap}
 .empty{max-width:520px}
 .startrow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
@@ -191,7 +185,6 @@ textarea#txt{max-height:132px;overflow-y:auto}
 .startopt:first-child:not(:last-child){background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .startopt b{display:block;font-size:14px}.startopt small{display:block;font-size:11px;opacity:.8}
 .startopt:hover{border-color:var(--accent)}
-.no-nat .gist.forced{display:flex}
 
 </style>
 </head>
@@ -251,12 +244,10 @@ textarea#txt{max-height:132px;overflow-y:auto}
       <div class="set"><span class="lab">Longest single line</span>
         <div class="seg" data-key="max"><button data-v="5">5 s</button><button data-v="8">8 s</button><button data-v="15">15 s</button><button data-v="25">25 s</button><button data-v="30">30 s</button></div></div>
       <div class="set"><div class="row2"><div><span class="lab">Translate automatically</span><br><span class="hint">Each heard line is translated as it arrives.</span></div><button class="switch" role="switch" data-sw="auto" aria-label="Translate automatically"></button></div></div>
-      <div class="set"><div class="row2"><div><span class="lab">Guess speakers</span> <span class="hint">· experimental</span><br><span class="hint">Groups lines by voice. Tap a chip to correct it.</span></div><button class="switch" role="switch" data-sw="spk" aria-label="Guess speakers"></button></div></div>
-      <div class="set"><div class="row2"><div><span class="lab">Natural translation</span> <span class="hint">· optional</span><br><span class="hint">A fluent English line under each Japanese sentence. Downloads a ~100 MB model once.</span></div><button class="switch" role="switch" data-sw="nat" aria-label="Natural translation"></button></div></div>
       <div class="set"><div class="row2"><div><span class="lab">Auto-scroll to newest line</span><br><span class="hint">Turn off to read at your own pace. A button shows when new lines arrive.</span></div><button class="switch" role="switch" data-sw="scroll" aria-label="Auto-scroll to newest line"></button></div></div>
       <div class="set"><div class="row2"><div><span class="lab">Show line length</span></div><button class="switch" role="switch" data-sw="dur" aria-label="Show line length"></button></div></div>
       <div class="set"><span class="hint">Nothing is uploaded: recognition and translation run in your browser. <span id="freshNote"></span></span></div>
-      <div class="set credits">Word meanings: <a href="https://www.edrdg.org/edrdg/licence.html" target="_blank" rel="noopener">JMdict</a> © EDRDG, CC BY-SA 4.0 · Tokenizer: kuromoji.js (Apache-2.0) with mecab-ipadic · Speech: Whisper (MIT) · Natural translation: Opus-MT (CC BY 4.0), run with transformers.js. Word-for-word glosses are literal and show the most common meaning.</div>
+      <div class="set credits">Word meanings: <a href="https://www.edrdg.org/edrdg/licence.html" target="_blank" rel="noopener">JMdict</a> © EDRDG, CC BY-SA 4.0 · Tokenizer: kuromoji.js (Apache-2.0) with mecab-ipadic · Speech: Whisper (MIT). Word-for-word glosses are literal and show the most common meaning.</div>
     </div>
   </aside>
 </div>
@@ -269,7 +260,6 @@ textarea#txt{max-height:132px;overflow-y:auto}
   const L = window.WordhueLocal, app = $("#app"), feed = $("#feed");
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const TF_URL = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2";
-  const SPK = ["A", "B", "C", "D", "E", "F"];
 
   /* Testing mode: behave like a first visit every time (no saved settings, no cached downloads).
      Add ?keep to the address to turn this off and keep settings and cached models. */
@@ -290,7 +280,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   const tf = () => tfP || (tfP = import(TF_URL).then(m => { if (FRESH) m.env.useBrowserCache = false; return m; }));
 
   /* ================= settings (remembered on this device) ================= */
-  const DEF = { lang: "japanese", model: isPhone ? "fast" : "accurate", pause: "0.3", max: "5", source: canComputer ? "computer" : "mic", auto: false, spk: true, dur: true, nat: false, scroll: true, furi: true, roma: true, mean: true, dir: "ja" };
+  const DEF = { lang: "japanese", model: isPhone ? "fast" : "accurate", pause: "0.3", max: "5", source: canComputer ? "computer" : "mic", auto: false, dur: true, scroll: true, furi: true, roma: true, mean: true, dir: "ja" };
   const S = { ...DEF };
   if (!FRESH) { try { Object.assign(S, JSON.parse(localStorage.getItem("wordhue.settings") || "{}")); } catch (_) {} }
   if (S.lang !== "english") S.lang = "japanese"; if (S.dir !== "en") S.dir = "ja";      // no auto-detect
@@ -301,7 +291,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   function applySettings() {
     $$(".seg[data-key]").forEach(g => [...g.children].forEach(b => b.setAttribute("aria-pressed", String(String(S[g.dataset.key]) === b.dataset.v))));
     $$(".switch").forEach(s => s.setAttribute("aria-checked", String(!!S[s.dataset.sw])));
-    app.classList.toggle("no-spk", !S.spk); app.classList.toggle("no-dur", !S.dur); app.classList.toggle("no-nat", !S.nat);
+    app.classList.toggle("no-dur", !S.dur);
     app.classList.toggle("no-furi", !S.furi); app.classList.toggle("no-roma", !S.roma); app.classList.toggle("no-lit", !S.mean);
     $("#tgFuri").setAttribute("aria-pressed", String(!!S.furi)); $("#tgRoma").setAttribute("aria-pressed", String(!!S.roma)); $("#tgLit").setAttribute("aria-pressed", String(!!S.mean));
     $("#srcComputerBtn").hidden = !canComputer; $("#srcHint").textContent = canComputer ? "" : (isPhone ? "Phones can only use the microphone." : "This browser can only use the microphone.");
@@ -309,7 +299,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   }
 
   /* ================= conversation feed ================= */
-  // item: { kind: "ja" | "en" | "text", s, raw, meta: {speaker, dur, t}, nat }
+  // item: { kind: "ja" | "en" | "text" | "pending", s, raw, meta: {dur, t} }
   let items = [], stash = null, toastT = null, busyMsg = "";
   const model = { loading: false, pct: 0, label: "" };
 
@@ -331,32 +321,19 @@ textarea#txt{max-height:132px;overflow-y:auto}
   }
   function metaHtml(item) {
     const m = item.meta || {};
-    return `<div class="meta">${m.speaker ? `<button class="spk ${m.speaker}" data-spk="${item.id}" title="Change speaker">${esc(m.speaker)}</button>` : ""}${m.dur ? `<span class="dur">${m.dur.toFixed(1)} s</span>` : ""}<span>${esc(m.t || "")}</span>${item.kind === "pending" ? "" : `<button class="more" data-more="${item.id}" aria-label="Line options">⋯</button>`}</div>`;
-  }
-  const isJaLine = it => it.kind === "ja" || (it.kind === "text" && L.detect(it.raw) === "ja");
-  function natGist(item) {
-    const v = item.nat; if (v === null) return "";
-    return `<div class="gist forced"><small>Natural translation</small>${v === undefined ? `<span class="nat-wait">${esc(nat.status || "translating…")}</span>` : `<span>${esc(v)}</span>`}</div>`;
-  }
-  function natHtml(item) {                         // translated lines (word-for-word shown)
-    if (item.kind !== "ja") return "";
-    if (!S.nat && !item.natWanted) return item.nat === undefined ? `<div class="untrans"><button data-nat="${item.id}">Natural translation</button></div>` : "";
-    return natGist(item);
+    return `<div class="meta">${m.dur ? `<span class="dur">${m.dur.toFixed(1)} s</span>` : ""}<span>${esc(m.t || "")}</span>${item.kind === "pending" ? "" : `<button class="more" data-more="${item.id}" aria-label="Line options">⋯</button>`}</div>`;
   }
   function itemHtml(item) {
     if (item.kind === "pending")
       return `<article class="line pending" data-id="${item.id}">${metaHtml(item)}<div class="untrans"><span class="nat-wait">transcribing…</span></div></article>`;
     if (item.kind === "text") {
       const toks = item.rd ? item.rd.map((t, i) => tokRd(item, i)).join("") : "";
-      const ja = isJaLine(item), want = S.nat || item.natWanted;
-      const natBtn = ja && !want && item.nat === undefined ? `<button data-nat="${item.id}">Natural translation</button>` : "";
-      const gist = ja && want ? natGist(item) : "";
-      return `<article class="line" data-id="${item.id}">${metaHtml(item)}${toks ? `<div class="inter">${toks}</div>` : `<div class="untrans"><span>${esc(item.raw)}</span></div>`}${gist}<div class="untrans">${natBtn}<button data-trans="${item.id}">Translate</button></div></article>`;
+      return `<article class="line" data-id="${item.id}">${metaHtml(item)}${toks ? `<div class="inter">${toks}</div>` : `<div class="untrans"><span>${esc(item.raw)}</span></div>`}<div class="untrans"><button data-trans="${item.id}">Translate</button></div></article>`;
     }
     const s = item.s, n = item.kind === "en" ? s.src.length : s.tokens.length;
     let toks = ""; for (let i = 0; i < n; i++) toks += item.kind === "en" ? tokEn(item, i) : tokJa(item, i);
     const warn = s.warnings && s.warnings.length ? `<div class="warn">${s.warnings.length} word${s.warnings.length > 1 ? "s" : ""} not in the dictionary: ${esc(s.warnings.map(x => x.replace(/ (is not in|not found).*$/, "")).join(", "))}</div>` : "";
-    return `<article class="line" data-id="${item.id}">${metaHtml(item)}<div class="inter">${toks}</div>${natHtml(item)}${warn}</article>`;
+    return `<article class="line" data-id="${item.id}">${metaHtml(item)}<div class="inter">${toks}</div>${warn}</article>`;
   }
   function liveHtml() {
     if (listening && model.loading) return `<div class="live"><span class="pulse"></span><span>Getting the speech model ready. Listening already; lines appear when it is done.</span><span class="livebar"><i style="width:${model.pct}%"></i></span><span>${model.pct}%</span></div>`;
@@ -393,12 +370,12 @@ textarea#txt{max-height:132px;overflow-y:auto}
     b.hidden = !(away || unseen > 0) || !items.length;
     b.textContent = unseen > 0 ? "↓ " + unseen + " new line" + (unseen > 1 ? "s" : "") : "↓ Jump to latest";
   }
-  function addItems(list, at, carry) {
-    list.forEach(x => { x.id = nextId++; if (carry) { if (carry.natWanted) x.natWanted = true; if (carry.nat !== undefined && list.length === 1) x.nat = carry.nat; } });
+  function addItems(list, at) {
+    list.forEach(x => { x.id = nextId++; });
     const i = at ? items.indexOf(at) : -1;
     if (i >= 0) items.splice(i, 1, ...list); else items.push(...list);
     newLines += Math.max(0, list.length - (i >= 0 ? 1 : 0)); if (scrollOnNext) { forceScroll = true; scrollOnNext = false; }
-    render(); list.forEach(natFor);
+    render();
   }
   function dropItem(it) { items = items.filter(x => x !== it); render(); }
   function setStatus(msg, err) { const el = $("#status"); el.textContent = msg || ""; el.className = "status" + (err ? " err" : ""); }
@@ -406,47 +383,20 @@ textarea#txt{max-height:132px;overflow-y:auto}
   /* ================= translating ================= */
   const nowStamp = () => { const s = Math.floor((Date.now() - sessionT0) / 1000); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
   let sessionT0 = Date.now();
-  async function translate(text, meta, at, carry) {
+  async function translate(text, meta, at) {
     const dir = meta && meta.heard ? (S.lang === "english" ? "en" : "ja") : S.dir;
     const busy = m => setStatus(m);
     try {
-      if (dir === "en") { const r = await L.en2ja(text, busy); addItems(r.sentences.map(s => ({ kind: "en", s, meta: meta ? { ...meta } : null })), at, carry); }
-      else { const r = await L.ja2en(text, busy); addItems(r.sentences.map(s => ({ kind: "ja", s, meta: meta ? { ...meta } : null })), at, carry); }
+      if (dir === "en") { const r = await L.en2ja(text, busy); addItems(r.sentences.map(s => ({ kind: "en", s, meta: meta ? { ...meta } : null })), at); }
+      else { const r = await L.ja2en(text, busy); addItems(r.sentences.map(s => ({ kind: "ja", s, meta: meta ? { ...meta } : null })), at); }
       setStatus("");
     } catch (e) { setStatus("Couldn’t load the dictionary: " + e.message, true); toast("Dictionary failed to load. Check your connection and try again."); }
   }
 
-  /* ---- natural translation (optional on-device model) ---- */
-  const nat = { p: null, chain: Promise.resolve(), failed: false, status: "" };
-  function natPipe() {
-    if (!nat.p) nat.p = (async () => {
-      const { pipeline } = await tf();
-      const pl = await pipeline("translation", "Xenova/opus-mt-ja-en", { device: "wasm", session_options: { intraOpNumThreads: 2 }, progress_callback: p => {
-        if (p.status === "progress" && p.total) { prog.nat = Math.min(0.99, p.loaded / p.total); nat.status = `getting translation model ${Math.round(p.loaded / p.total * 100)}%`; showReady(); render(); } } });
-      prog.nat = 1; showReady(); return pl;
-    })().catch(e => { nat.p = null; throw e; });
-    return nat.p;
-  }
-  function natFor(item) {
-    if (!(S.nat || item.natWanted) || !isJaLine(item) || item.nat !== undefined || item.natBusy) return;
-    item.natBusy = true;
-    const text = item.kind === "ja" ? item.s.tokens.map(t => t.text).join("") : item.raw;
-    nat.chain = nat.chain.then(async () => {
-      try {
-        const pipe = await natPipe();
-        const out = await pipe(text, { max_new_tokens: 200 });
-        item.nat = (out && out[0] && out[0].translation_text || "").trim() || null;
-      } catch (e) {
-        item.nat = null; if (!nat.failed) { nat.failed = true; toast("Natural translation isn’t available right now. Word-for-word still works."); }
-      }
-      item.natBusy = false; nat.status = ""; render();
-    });
-  }
-
   // heard line without translation: show it immediately, then add kana + romaji (a few ms once the tokenizer is ready)
-  function addReadingLine(text, meta, at, carry) {
+  function addReadingLine(text, meta, at) {
     const item = { kind: "text", raw: text, meta };
-    addItems([item], at, carry);
+    addItems([item], at);
     if (L.detect(text) !== "ja") return;
     L.readings(text).then(rd => { item.rd = rd; render(); }).catch(() => {});
   }
@@ -457,15 +407,15 @@ textarea#txt{max-height:132px;overflow-y:auto}
   let buf = [], bufLen = 0, speech = 0, silence = 0, queue = [], busyQ = false, secs = 0, tick = null;
 
   /* ---- one combined "getting ready" meter (dictionary, speech model, optional translation model) ---- */
-  const prog = { dict: 0, asr: 0, nat: 0 }, ASR_MB = { fast: 40, balanced: 80, accurate: 250 };
+  const prog = { dict: 0, asr: 0 }, ASR_MB = { fast: 40, balanced: 80, accurate: 250 };
   function readyPct() {
-    const w = { dict: 22, asr: ASR_MB[S.model], nat: S.nat ? 100 : 0 }, tot = w.dict + w.asr + w.nat;
-    return Math.min(100, Math.round((prog.dict * w.dict + prog.asr * w.asr + prog.nat * w.nat) / tot * 100));
+    const w = { dict: 22, asr: ASR_MB[S.model] }, tot = w.dict + w.asr;
+    return Math.min(100, Math.round((prog.dict * w.dict + prog.asr * w.asr) / tot * 100));
   }
   let readyT = null;
   function showReady() {
     const el = $("#ready"), pc = readyPct();
-    if (pc >= 100 && (S.nat ? prog.nat === 1 : true) && prog.dict === 1 && prog.asr === 1) { el.textContent = "Ready ✓"; clearTimeout(readyT); readyT = setTimeout(() => { el.textContent = ""; }, 3000); }
+    if (pc >= 100 && prog.dict === 1 && prog.asr === 1) { el.textContent = "Ready ✓"; clearTimeout(readyT); readyT = setTimeout(() => { el.textContent = ""; }, 3000); }
     else el.textContent = "Getting ready " + pc + "%";
   }
   function ensureAsr() {
@@ -493,7 +443,6 @@ textarea#txt{max-height:132px;overflow-y:auto}
     $("#ready").textContent = "Getting ready 0%";
     try { await L.warmTok(); prog.dict = 0.8; showReady(); await L.warmDict(); prog.dict = 1; showReady(); } catch (e) { setStatus("Couldn’t load the dictionary: " + e.message, true); }
     try { await ensureAsr(); } catch (e) { setStatus("Couldn’t load the speech model: " + e.message, true); }
-    if (S.nat) { try { await natPipe(); } catch (_) {} }
   }
   const workletSrc = `class P extends AudioWorkletProcessor{process(i){const c=i[0];if(c&&c[0])this.port.postMessage(c[0].slice());return true}}registerProcessor('cap',P)`;
 
@@ -572,7 +521,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
     const out = new Float32Array(bufLen); let o = 0; for (const c of buf) { out.set(c, o); o += c.length; }
     const dur = Math.max(0.1, bufLen / SR - silence), stamp = nowStamp();
     buf = []; bufLen = speech = silence = 0;
-    const speaker = S.spk ? guessSpeaker(out) : undefined, meta = { speaker, dur, t: stamp, heard: true };
+    const meta = { dur, t: stamp, heard: true };
     const item = { kind: "pending", meta };
     addItems([item]);                                   // the line shows up now, text follows
     queue.push({ audio: out, meta, item }); pending++; drain();
@@ -613,53 +562,6 @@ textarea#txt{max-height:132px;overflow-y:auto}
     busyQ = false;
   }
 
-  /* ---- experimental "who is speaking": cluster lines by pitch + spectral shape ---- */
-  const FN = 1024, FH = 512, BANDS = [0, 300, 600, 1200, 2400, 4000, 8000];
-  const hann = Float32Array.from({ length: FN }, (_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (FN - 1)));
-  function fft(re, im) {
-    const n = re.length;
-    for (let i = 1, j = 0; i < n; i++) { let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit; if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
-    for (let len = 2; len <= n; len <<= 1) {
-      const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang);
-      for (let i = 0; i < n; i += len) { let cr = 1, ci = 0;
-        for (let k = 0; k < len / 2; k++) { const a = i + k, b = a + len / 2, tr = re[b] * cr - im[b] * ci, ti = re[b] * ci + im[b] * cr;
-          re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti; const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t; } }
-    }
-  }
-  function voiceFeatures(a) {
-    const f0s = [], bands = new Float64Array(BANDS.length - 1), re = new Float64Array(FN), im = new Float64Array(FN); let cnt = 0;
-    for (let o = 0; o + FN <= a.length; o += FH) {
-      let e = 0; for (let i = 0; i < FN; i++) { const v = a[o + i]; e += v * v; }
-      if (Math.sqrt(e / FN) < 0.015) continue;
-      let best = 0, bl = 0; const e0 = e || 1;
-      for (let lag = 40; lag <= 228; lag++) { let c = 0; for (let i = 0; i < FN - lag; i += 2) c += a[o + i] * a[o + i + lag]; c = c * 2 / e0; if (c > best) { best = c; bl = lag; } }
-      if (best > 0.35) f0s.push(SR / bl);
-      for (let i = 0; i < FN; i++) { re[i] = a[o + i] * hann[i]; im[i] = 0; }
-      fft(re, im);
-      let tot = 0; const bb = new Float64Array(bands.length);
-      for (let k = 1; k < FN / 2; k++) { const hz = k * SR / FN, m = re[k] * re[k] + im[k] * im[k]; tot += m; for (let b = 0; b < bands.length; b++) if (hz >= BANDS[b] && hz < BANDS[b + 1]) { bb[b] += m; break; } }
-      if (tot > 0) { for (let b = 0; b < bands.length; b++) bands[b] += bb[b] / tot; cnt++; }
-    }
-    if (cnt < 3) return null;
-    f0s.sort((x, y) => x - y);
-    return { lf0: f0s.length >= 3 ? Math.log(f0s[f0s.length >> 1]) : null, bands: Array.from(bands, v => v / cnt) };
-  }
-  let spkC = [], lastSpk = 0;
-  function dist(f, c) {
-    let d = 0;
-    if (f.lf0 != null && c.lf0 != null) d += Math.pow((f.lf0 - c.lf0) / 0.12, 2);
-    for (let i = 0; i < f.bands.length; i++) d += Math.pow((f.bands[i] - c.bands[i]) / 0.07, 2) / f.bands.length;
-    return Math.sqrt(d);
-  }
-  function guessSpeaker(a) {
-    const f = voiceFeatures(a);
-    if (!f) return spkC.length ? SPK[lastSpk] : "A";
-    let bi = -1, bd = Infinity; spkC.forEach((c, i) => { const d = dist(f, c); if (d < bd) { bd = d; bi = i; } });
-    if (bi < 0 || (bd > 1.7 && spkC.length < SPK.length)) { spkC.push({ lf0: f.lf0, bands: f.bands.slice(), n: 1 }); bi = spkC.length - 1; }
-    else { const c = spkC[bi], k = 1 / (++c.n); if (f.lf0 != null) c.lf0 = c.lf0 == null ? f.lf0 : c.lf0 + (f.lf0 - c.lf0) * k; c.bands = c.bands.map((v, i) => v + (f.bands[i] - v) * k); }
-    lastSpk = bi; return SPK[bi];
-  }
-
   /* ================= UI wiring ================= */
   function toast(msg, undo) {
     clearTimeout(toastT); $(".toast") && $(".toast").remove();
@@ -674,19 +576,19 @@ textarea#txt{max-height:132px;overflow-y:auto}
     catch (_) { const ta = document.createElement("textarea"); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); toast("Copied"); } catch (e) { toast("Couldn’t copy"); } ta.remove(); }
   }
   const jaOf = it => it.kind === "ja" ? it.s.tokens.map(t => t.text).join("") : it.kind === "en" ? it.s.jp.map(t => t.text).join("") : it.raw;
-  const enOf = it => it.kind === "en" ? it.s.src.map(t => t.text).join(" ").replace(/ ([.,?!])/g, "$1") : it.kind === "ja" ? (it.nat || it.s.english.map(p => p.text).join(" ")) : "";
+  const enOf = it => it.kind === "en" ? it.s.src.map(t => t.text).join(" ").replace(/ ([.,?!])/g, "$1") : it.kind === "ja" ? it.s.english.map(p => p.text).join(" ") : "";
 
   $("#listen").onclick = () => listening ? stopListening() : startListening();
   $("#newchat").onclick = () => {
     if (!items.length) return;
-    const old = items, snap = L.snapshot(); items = []; L.resetContext(); queue.length = 0; epoch++; pending = 0; spkC = []; lastSpk = 0; render();
+    const old = items, snap = L.snapshot(); items = []; L.resetContext(); queue.length = 0; epoch++; pending = 0; render();
     toast("Conversation cleared. Topic forgotten.", () => { items = old; L.restore(snap); render(); });
   };
   const drawer = o => { $("#drawer").classList.toggle("open", o); $("#scrim").classList.toggle("open", o); };
   $("#gear").onclick = () => drawer(true); $("#closeDrawer").onclick = () => drawer(false); $("#scrim").onclick = () => drawer(false);
   document.addEventListener("keydown", e => { if (e.key === "Escape") { drawer(false); closeMenu(); $("#legendPop").hidden = true; } });
   $$(".seg[data-key]").forEach(g => g.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S[g.dataset.key] = b.dataset.v; save(); applySettings(); if (g.dataset.key === "model") ensureAsr().catch(() => {}); }));
-  $$(".switch").forEach(sw => sw.onclick = () => { S[sw.dataset.sw] = !S[sw.dataset.sw]; save(); applySettings(); if (sw.dataset.sw === "nat" && S.nat) items.forEach(natFor); render(); });
+  $$(".switch").forEach(sw => sw.onclick = () => { S[sw.dataset.sw] = !S[sw.dataset.sw]; save(); applySettings(); render(); });
   [["tgFuri", "furi"], ["tgRoma", "roma"], ["tgLit", "mean"]].forEach(([id, k]) => $("#" + id).onclick = () => { S[k] = !S[k]; save(); applySettings(); });
   $("#legendBtn").onclick = () => { const p = $("#legendPop"); p.hidden = !p.hidden; };
   $("#dir").onclick = () => { S.dir = S.dir === "ja" ? "en" : "ja"; save(); applySettings(); };
@@ -711,8 +613,6 @@ textarea#txt{max-height:132px;overflow-y:auto}
   });
   feed.addEventListener("click", e => {
     const byId = id => items.find(x => x.id === +id);
-    const sp = e.target.closest("[data-spk]");
-    if (sp) { const it = byId(sp.dataset.spk), used = Math.min(SPK.length, Math.max(2, spkC.length + 1)); it.meta.speaker = SPK[(SPK.indexOf(it.meta.speaker) + 1) % used]; render(); return; }
     const mo = e.target.closest("[data-more]");
     if (mo) {
       e.stopPropagation(); closeMenu(); const it = byId(mo.dataset.more), r = mo.getBoundingClientRect();
@@ -726,10 +626,8 @@ textarea#txt{max-height:132px;overflow-y:auto}
     }
     if (e.target.closest("#startComputer")) { startListening("computer"); return; }
     if (e.target.closest("#startMic")) { startListening("mic"); return; }
-    const nb = e.target.closest("[data-nat]");
-    if (nb) { const it = byId(nb.dataset.nat); it.natWanted = true; natFor(it); render(); return; }
     const tr = e.target.closest("[data-trans]");
-    if (tr) { const it = byId(tr.dataset.trans); translate(it.raw, it.meta, it, { natWanted: it.natWanted, nat: it.nat }); return; }
+    if (tr) { const it = byId(tr.dataset.trans); translate(it.raw, it.meta, it); return; }
     const opt = e.target.closest(".pop button");
     if (opt) { const it = byId(opt.dataset.it), i = +opt.dataset.ti, k = +opt.dataset.k;
       if (it.kind === "ja") { const g = it.s.alts[i][k]; it.s.literal[i].text = g; const en = it.s.english.find(x => x.ids.length === 1 && x.ids[0] === i); if (en) en.text = g; }
@@ -760,7 +658,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   else $("#freshNote").textContent = "Settings are remembered on this device.";
   applySettings(); render(); preload();
   if (!canComputer && !canMic) { $("#listen").disabled = true; setStatus("This browser can’t listen to audio. Try Chrome, Edge, Safari or Firefox over HTTPS.", true); }
-  window.WordhueTest = { voiceFeatures, guessSpeaker, reset() { spkC = []; lastSpk = 0; }, items: () => items, translate, addReadingLine, prog,
+  window.WordhueTest = { items: () => items, translate, addReadingLine, prog,
     setAsr(fn) { asr = fn; asrKey = WHISPER[S.model]; asrP = Promise.resolve(fn); asrDev = "GPU"; },
     fakeSegment(sec) { const a = new Float32Array(Math.round(sec * SR)); buf = [a]; bufLen = a.length; speech = sec; silence = 0; flush(); } };
 })();
