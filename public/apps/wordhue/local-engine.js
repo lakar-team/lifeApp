@@ -408,34 +408,52 @@
   async function analyzeSegment(text, s0, e0, def) {
     const dict = await getJa(), extra = await getExtra().catch(() => ({})), t = text.slice(s0, e0), inner = (def || []).filter(x => x.s >= s0 && x.e <= e0);
     const aligned = inner.length > 0 && inner[0].s === s0 && inner[inner.length - 1].e === e0, single = aligned && inner.length === 1;
-    let reading, entry = dict[t] || extra[t], senses = [], cls = "other", pos = "", parts = null, ri, k = null, gloss;
+    let reading, entry = dict[t] || extra[t], senses = [], cls = "other", pos = "", parts = null, ri, k = null, gloss, base = "", tags = [], form = "";
     if (aligned) reading = inner.map(x => x.reading).join("");
     else { const tk = await getTok(); reading = tk.tokenize(t).map(x => toHira(x.reading && x.reading !== "*" ? x.reading : x.surface_form)).join(""); }
     if (single) { k = inner[0].k; ri = inner[0].ri; cls = inner[0].cls; }
-    if (single && k) { senses = await meaning(k); pos = k.pos === "助詞" ? "particle" : k.pos === "助動詞" ? "ending" : posLabel(entry ? parseEntry(entry)[0].pos : []); }
+    if (single && k) { if (k.basic_form && k.basic_form !== "*" && k.basic_form !== t) { base = k.basic_form; form = CONJ[k.conjugated_form] || ""; }
+      senses = await meaning(k); pos = k.pos === "助詞" ? "particle" : k.pos === "助動詞" ? "ending" : posLabel(entry ? parseEntry(entry)[0].pos : (base && (dict[base] || extra[base]) ? parseEntry(dict[base] || extra[base])[0].pos : [])); }
     else if (PARTICLE[t] || (AUX[t] && !entry)) { senses = [PARTICLE[t] || AUX[t]]; cls = PARTICLE[t] ? "particle" : "aux"; pos = PARTICLE[t] ? "particle" : "ending"; }   // grammar words keep their short tags
     else if (entry) {
       const ps = parseEntry(entry); senses = uniq(ps.map(x => shortGloss(x.g))); cls = clsOfPos(ps[0].pos); pos = posLabel(ps[0].pos);
       if (ps[0].r) reading = ps[0].r;                                                  // a dictionary word: use its own reading
+    } else if (await conjOf(t).then(cj => { if (!cj) return false; const ps = parseEntry(cj.entry); senses = uniq(ps.map(x => shortGloss(x.g))); cls = cj.cls; pos = cj.pos; reading = cj.reading; base = cj.base; tags = cj.tags; form = cj.form; return true; })) {
+      gloss = senses[0] + (tags.length ? " " + tags.join("") : "");
     } else if (aligned && inner.length > 1) {
       parts = inner.map(x => x.text); const gl = await Promise.all(inner.map(x => x.k ? meaning(x.k) : Promise.resolve([x.text])));
       senses = [gl.map(g => g[0] || "?").join(" + ")];
     }
     let rm = romaji(reading); if (single && inner[0].romaji) rm = inner[0].romaji;
-    if (!senses.length) { gloss = "[" + rm + "]"; } else gloss = senses[0];
-    return { s: s0, e: e0, text: t, reading, romaji: rm, cls, pos, senses, gloss, known: !!entry || single, parts, k, ri, edited: !(single && inner[0]) };
+    if (!senses.length) { gloss = "[" + rm + "]"; } else if (gloss === undefined) gloss = senses[0];
+    return { s: s0, e: e0, text: t, reading, romaji: rm, cls, pos, senses, gloss, known: !!entry || single || !!base, parts, base, tags, form, k, ri, edited: !(single && inner[0]) };
   }
   // meanings for every token of a heard line (neighbour rules for untouched tokens; dictionary lookup for edited ones)
   async function translateTokens(raw, tokens) {
     const dict = await getJa(), res = analyzeRaw(raw, dict, true);
     return tokens.map(t => t.ri !== undefined && !t.edited && res.literal[t.ri] ? { gloss: res.literal[t.ri].text, senses: res.alts[t.ri] || [res.literal[t.ri].text] } : null);
   }
+  const CONJ = { "連用形": "stem", "未然形": "negative stem", "仮定形": "if-form", "命令": "command", "連用タ接続": "past stem", "連用テ接続": "te stem", "未然ウ接続": "volitional stem", "未然ヌ接続": "negative stem", "体言接続": "noun form" };
+  // a verb or adjective with its endings (食べました = 食べる + polite + past): returns the dictionary word behind it
+  async function conjOf(sub) {
+    if (sub.length < 2 || /[。、！？!?「」\s]/.test(sub)) return null;
+    const tok = await getTok(), dict = await getJa(), extra = await getExtra().catch(() => ({})), ts = tok.tokenize(sub), f = ts[0];
+    if (!f || (f.pos !== "動詞" && f.pos !== "形容詞") || f.pos_detail_1 === "非自立") return null;
+    if (ts.slice(1).some(r => !(r.pos === "助動詞" || (r.pos === "助詞" && r.pos_detail_1 === "接続助詞") || (r.pos === "動詞" && (r.pos_detail_1 === "非自立" || r.pos_detail_1 === "接尾"))))) return null;
+    const base = f.basic_form && f.basic_form !== "*" ? f.basic_form : f.surface_form, e = dict[base] || extra[base];
+    if (!e || base === sub) return null;
+    const tags = ts.slice(1).map(r => AUX[r.surface_form] || AUX[r.basic_form] || NONINDEP[r.basic_form] || NONINDEP[r.surface_form] || (r.pos_detail_1 === "接続助詞" ? "[and]" : "")).filter(Boolean);
+    const form = ts.length === 1 && f.conjugated_form && f.conjugated_form !== "基本形" ? (CONJ[f.conjugated_form] || "") : "";
+    return { base, entry: e, tags, form, reading: ts.map(r => toHira(r.reading && r.reading !== "*" ? r.reading : r.surface_form)).join(""), cls: f.pos === "動詞" ? "verb" : "adj", pos: f.pos === "動詞" ? "verb" : "adjective" };
+  }
   // dictionary words that can start at text[s0]
   async function candidates(text, s0) {
     const dict = await getJa(), extra = await getExtra().catch(() => ({})), out = [];
     for (let n = Math.min(12, text.length - s0); n >= 1; n--) {
       const w = text.substr(s0, n); if (/[。、！？!?「」『』（）()\s]/.test(w)) continue;
-      const e = dict[w] || extra[w]; if (e) { const p = parseEntry(e)[0]; out.push({ text: w, gloss: shortGloss(p.g), reading: p.r || "" }); }
+      const e = dict[w] || extra[w];
+      if (e) { const p = parseEntry(e)[0]; out.push({ text: w, gloss: shortGloss(p.g), reading: p.r || "" }); }
+      else if (n >= 2) { const cj = await conjOf(w); if (cj) out.push({ text: w, gloss: shortGloss(parseEntry(cj.entry)[0].g) + (cj.tags.length ? " " + cj.tags.join("") : ""), reading: cj.reading, base: cj.base }); }
     }
     return out;
   }
@@ -448,6 +466,8 @@
     }
     const dict = await getJa(), extra = await getExtra().catch(() => ({})), e = dict[q] || extra[q];
     if (e) { const ps = parseEntry(e); return { kind: "exact", q, reading: ps[0].r || "", pos: posLabel(ps[0].pos), senses: uniq(ps.map(x => shortGloss(x.g))) }; }
+    const cj = await conjOf(q);
+    if (cj) { const ps = parseEntry(cj.entry); return { kind: "conj", q, base: cj.base, reading: cj.reading, tags: cj.tags, form: cj.form, senses: uniq(ps.map(x => shortGloss(x.g))) }; }
     const more = [...Object.keys(dict), ...Object.keys(extra)].filter(k => k.startsWith(q)).sort((a, b) => a.length - b.length || a.localeCompare(b)).slice(0, 8).map(k => ({ text: k, gloss: shortGloss(parseEntry(dict[k] || extra[k])[0].g) }));
     return more.length ? { kind: "prefix", q, items: more } : { kind: "none", q };
   }

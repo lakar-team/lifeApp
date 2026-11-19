@@ -166,6 +166,19 @@ textarea#txt{max-height:132px;overflow-y:auto}
 .line .untrans button{padding:5px 12px;border-radius:8px;background:var(--panel2);font-size:12px;font-family:var(--sans)}
 .line .untrans button:hover{background:var(--accent);color:var(--accent-ink)}
 .tok.tk{cursor:pointer}
+.qp{position:fixed;z-index:50;width:min(320px,92vw);background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:10px 10px 8px;display:grid;gap:8px}
+.qp .qh{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.qp .qh b{font-family:var(--jp);font-size:20px;font-weight:500}
+.qp .qh span{font-size:12px;color:var(--dim)}
+.qp .qh .mono{font-family:var(--mono)}
+.qp .qopts{display:grid;gap:2px}
+.qp .qopt{display:flex;gap:8px;align-items:center;text-align:left;padding:5px 8px;border-radius:8px;font-size:13px}
+.qp .qopt:hover{background:var(--panel2)}
+.qp .qopt.sel{background:var(--hl)}
+.qp .qopt small{margin-left:auto;color:var(--dim2);font-size:11px;white-space:nowrap}
+.qp .qfoot{display:flex;align-items:center;gap:8px;border-top:1px solid var(--line);padding-top:7px;font-size:11px;color:var(--dim2)}
+.qp .qmore{margin-left:auto;padding:5px 10px;border-radius:8px;background:var(--panel2);font-size:12px;color:var(--fg)}
+.qp .qmore:hover{background:var(--accent);color:var(--accent-ink)}
 .tok.open{background:var(--hl);outline:1.5px solid var(--accent)}
 .tok.edited{border-bottom:2px solid var(--accent)}
 .line:not(.tr) .gl{display:none}
@@ -480,10 +493,10 @@ textarea#txt{max-height:132px;overflow-y:auto}
       : `<div class="cres">${info ? "Not in the offline dictionary. Try joining it with a neighbour, or search below." : "looking up…"}</div>`;
     const chars = [...t.text], splits = chars.length > 1 ? chars.slice(0, -1).slice(0, 8).map((_, n) => `<button class="pill" data-split="${t.s + n + 1}"><span class="jp">${esc(t.text.slice(0, n + 1))}</span>｜<span class="jp">${esc(t.text.slice(n + 1))}</span></button>`).join("") : `<span style="color:var(--dim2);font-size:12px">One character, nothing to split.</span>`;
     const jn = (x, dir) => x && x.cls !== "punct" ? `<button class="pill" data-join="${dir}">${dir === "prev" ? "◀ Join" : "Join"} <span class="jp">${esc(x.text)}</span>${dir === "next" ? " ▶" : ""}</button>` : `<button class="pill" disabled>${dir === "prev" ? "◀ Join —" : "Join — ▶"}</button>`;
-    const cands = card.cands.map(w => `<button class="cand${w.text === t.text ? " cur" : ""}" data-cand="${esc(w.text)}"><span class="jp">${esc(w.text)}</span><small>${esc(w.gloss)}</small></button>`).join("") || `<span style="color:var(--dim2);font-size:12px">${info ? "No dictionary word starts here." : "looking up…"}</span>`;
+    const cands = card.cands.map(w => `<button class="cand${w.text === t.text ? " cur" : ""}" data-cand="${esc(w.text)}"><span class="jp">${esc(w.text)}</span><small>${esc(w.gloss)}${w.base ? " · from " + esc(w.base) : ""}</small></button>`).join("") || `<span style="color:var(--dim2);font-size:12px">${info ? "No dictionary word starts here." : "looking up…"}</span>`;
     const res = card.res ? cardRes(card.res) : "";
     layer.innerHTML = `<div class="cscrim" id="cScrim"></div><section class="wc" id="wc" role="dialog" aria-label="Word card">
-      <header><div><div class="big">${esc(t.text)}</div><div class="sub"><span>${esc(t.reading || "")}</span><span>·</span><span style="font-family:var(--mono)">${esc(t.romaji || "")}</span>${info && info.pos ? `<span class="chip">${esc(info.pos)}</span>` : ""}${info && info.parts ? `<span class="chip">joined: ${info.parts.map(esc).join(" + ")}</span>` : ""}</div></div>
+      <header><div><div class="big">${esc(t.text)}</div><div class="sub"><span>${esc(t.reading || "")}</span><span>·</span><span style="font-family:var(--mono)">${esc(t.romaji || "")}</span>${info && info.pos ? `<span class="chip">${esc(info.pos)}</span>` : ""}${info && info.parts ? `<span class="chip">joined: ${info.parts.map(esc).join(" + ")}</span>` : ""}${info && info.base ? `<span class="chip">form of ${esc(info.base)}${info.form ? " · " + esc(info.form) : ""}${info.tags && info.tags.length ? " " + info.tags.map(esc).join("") : ""}</span>` : ""}</div></div>
         <span class="hd"><button class="undo" id="cUndo" ${hist.length ? "" : "disabled"} title="Undo the last change (Ctrl+Z)">↶ Undo${hist.length ? " · " + hist.length : ""}</button><button class="x" id="cClose" aria-label="Close">×</button></span></header>
       <div class="sec"><h4>Meaning</h4><div class="opts">${opts}</div></div>
       <div class="sec"><h4>Join or split</h4><div class="crow">${jn(prev, "prev")}${jn(next, "next")}</div><div class="crow" style="margin-top:6px">${splits}</div></div>
@@ -494,6 +507,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   }
   function cardRes(r) {
     if (r.kind === "exact") return `<div class="cres"><b>${esc(r.q)}</b>${r.reading ? " · " + esc(r.reading) : ""}${r.pos ? " · " + esc(r.pos) : ""}<br>${r.senses.map(esc).join(" · ")}</div>`;
+    if (r.kind === "conj") return `<div class="cres"><b>${esc(r.q)}</b>${r.reading ? " · " + esc(r.reading) : ""}<br>form of <b>${esc(r.base)}</b>${r.form ? " · " + esc(r.form) : ""}${r.tags.length ? " " + r.tags.map(esc).join("") : ""}<br>${r.senses.map(esc).join(" · ")}</div>`;
     if (r.kind === "prefix") return `<div class="cres">Words starting with <b>${esc(r.q)}</b>:<br>${r.items.map(x => `<span class="lk" data-fill="${esc(x.text)}" title="${esc(x.gloss)}">${esc(x.text)}</span>`).join("")}</div>`;
     if (r.kind === "english") return `<div class="cres">Japanese for <b>${esc(r.q)}</b>:<br>${r.items.map(x => `<span class="lk" data-fill="${esc(x.text)}" title="${esc(x.reading)}">${esc(x.text)}</span>`).join("")}</div>`;
     return `<div class="cres">“${esc(r.q || "")}” is not in the offline dictionary. Use <b>Open in Jisho</b> below for a full lookup.</div>`;
@@ -529,6 +543,31 @@ textarea#txt{max-height:132px;overflow-y:auto}
   }
   async function doSearch() {
     const q = $("#cq").value.trim(); card.q = q; card.res = await L.lookup(q); renderCard();
+  }
+
+  /* ---- quick meaning: tap a word to see it at once ---- */
+  let qp = null;
+  function closeQuick() { if (qp) { qp.el.remove(); qp = null; } $$(".tok.pin").forEach(x => x.classList.remove("pin")); }
+  function placeQuick(box, el) {
+    const r = el.getBoundingClientRect(), w = box.offsetWidth, h = box.offsetHeight;
+    let top = r.bottom + 6; if (top + h > innerHeight - 8) top = Math.max(8, r.top - h - 6);
+    box.style.top = top + "px"; box.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + "px";
+  }
+  async function showQuick(el) {
+    closeQuick();
+    const id = +el.dataset.it, ti = +el.dataset.ti, it = items.find(x => x.id === id); if (!it || !it.tk) return;
+    const t = it.tk[ti]; el.classList.add("pin");
+    const box = document.createElement("div"); box.className = "qp"; box.setAttribute("role", "dialog");
+    box.innerHTML = `<div class="qh"><b>${esc(t.text)}</b><span>${esc(t.reading || "")}</span><span class="mono">${esc(t.romaji || "")}</span></div><div class="nat-wait">looking up…</div>`;
+    document.body.appendChild(box); qp = { el: box, id, start: t.s }; placeQuick(box, el);
+    let info; try { info = await L.analyzeSegment(it.text, t.s, t.e, it.def); } catch (e) { if (qp && qp.el === box) box.innerHTML = `<div class="nat-wait">Couldn’t load the dictionary.</div>`; return; }
+    if (!qp || qp.el !== box) return;
+    const senses = (t.senses && t.senses.length ? t.senses : info.senses).slice(0, 6), cur = t.gloss !== undefined ? t.gloss : senses[0];
+    const chips = (info.pos ? `<span class="chip">${esc(info.pos)}</span>` : "") + (info.base ? ` <span class="chip">form of ${esc(info.base)}${info.form ? " · " + esc(info.form) : ""}</span>` : "");
+    box.innerHTML = `<div class="qh"><b>${esc(t.text)}</b><span>${esc(t.reading || "")}</span><span class="mono">${esc(t.romaji || "")}</span>${chips}</div>
+      <div class="qopts">${senses.length ? senses.map((g, n) => `<button class="qopt${g === cur ? " sel" : ""}" data-qs="${n}">${esc(g)}${n === 0 ? "<small>most common</small>" : ""}</button>`).join("") : `<div class="nat-wait">Not in the offline dictionary.</div>`}</div>
+      <div class="qfoot"><span>Wrong cut? Join, split or look up.</span><button class="qmore" data-qopen="1">Open panel ▸</button></div>`;
+    qp.senses = senses; placeQuick(box, el);
   }
 
   /* ================= translating ================= */
@@ -747,7 +786,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   };
   const drawer = o => { $("#drawer").classList.toggle("open", o); $("#scrim").classList.toggle("open", o); };
   $("#gear").onclick = () => drawer(true); $("#closeDrawer").onclick = () => drawer(false); $("#scrim").onclick = () => drawer(false);
-  document.addEventListener("keydown", e => { if (e.key === "Escape") { drawer(false); closeMenu(); $("#legendPop").hidden = true; if (card) closeCard(); } });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") { drawer(false); closeMenu(); $("#legendPop").hidden = true; if (card) closeCard(); closeQuick(); } });
   $$(".seg[data-key]").forEach(g => g.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S[g.dataset.key] = b.dataset.v; save(); applySettings(); }));
   $$(".switch").forEach(sw => sw.onclick = () => { S[sw.dataset.sw] = !S[sw.dataset.sw]; save(); applySettings(); render(); });
   [["tgFuri", "furi"], ["tgRoma", "roma"], ["tgLit", "mean"]].forEach(([id, k]) => $("#" + id).onclick = () => { S[k] = !S[k]; save(); applySettings(); });
@@ -788,7 +827,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
     if (e.target.closest("#startComputer")) { startListening("computer"); return; }
     if (e.target.closest("#startMic")) { startListening("mic"); return; }
     const tkEl = e.target.closest(".tok.tk");
-    if (tkEl) { openCard(+tkEl.dataset.it, +tkEl.dataset.ti); return; }
+    if (tkEl) { if (card) { closeQuick(); openCard(+tkEl.dataset.it, +tkEl.dataset.ti); } else showQuick(tkEl); return; }
     const tr = e.target.closest("[data-trans]");
     if (tr) {
       const it = byId(tr.dataset.trans);
@@ -810,6 +849,18 @@ textarea#txt{max-height:132px;overflow-y:auto}
     p.innerHTML = `<h5>Other meanings</h5>` + list.map((a, k) => `<button class="${a === cur ? "cur" : ""}" data-it="${it.id}" data-ti="${i}" data-k="${k}">${esc(a)}</button>`).join("");
     tk.appendChild(p);
   });
+  feed.addEventListener("dblclick", e => { const tkEl = e.target.closest(".tok.tk"); if (tkEl) { closeQuick(); openCard(+tkEl.dataset.it, +tkEl.dataset.ti); } });
+  document.addEventListener("click", e => {
+    if (!qp) return;
+    const open = e.target.closest("[data-qopen]"), pick = e.target.closest("[data-qs]");
+    if (open) { const { id, start } = qp, it = items.find(x => x.id === id), i = it && it.tk ? it.tk.findIndex(t => t.s === start) : -1; closeQuick(); if (i >= 0) openCard(id, i); return; }
+    if (pick) {
+      const it = items.find(x => x.id === qp.id), t = it && it.tk && it.tk.find(x => x.s === qp.start), g = qp.senses[+pick.dataset.qs];
+      if (t && g !== undefined) { pushHist(); t.gloss = g; t.picked = true; if (remember) { forcedGloss[t.text] = g; items.forEach(x => (x.tk || []).forEach(y => { if (y !== t && y.text === t.text) { y.gloss = g; y.picked = true; } })); } closeQuick(); render(); toast("Meaning changed", { label: "Undo", fn: undo }); }
+      return;
+    }
+    if (!e.target.closest(".qp") && !e.target.closest(".tok.tk")) closeQuick();
+  });
   $("#cardLayer").addEventListener("click", e => {
     if (e.target.closest("#cUndo")) { undo(); return; }
     if (e.target.closest("#cClose") || e.target.id === "cScrim") { closeCard(); return; }
@@ -824,7 +875,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   $("#cardLayer").addEventListener("input", e => { if (e.target.id === "cq" && card) { card.q = e.target.value; const a = $("#cJisho"); if (a) a.href = "https://jisho.org/search/" + encodeURIComponent(e.target.value.trim()); } });
   $("#cardLayer").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "cq") { e.preventDefault(); doSearch(); } });
   document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && card && !/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) { e.preventDefault(); undo(); } });
-  feed.addEventListener("scroll", () => { if (feed.scrollHeight - feed.scrollTop - feed.clientHeight < 24) unseen = 0; updateJump(); });
+  feed.addEventListener("scroll", () => { closeQuick(); if (feed.scrollHeight - feed.scrollTop - feed.clientHeight < 24) unseen = 0; updateJump(); });
   $("#jump").onclick = () => { feed.scrollTo({ top: feed.scrollHeight, behavior: "smooth" }); unseen = 0; updateJump(); };
 
   if (FRESH) $("#freshNote").textContent = "Testing mode: settings and downloads are not kept between visits. Add ?keep to the address to keep them.";
