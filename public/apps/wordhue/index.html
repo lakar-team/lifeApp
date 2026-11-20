@@ -629,7 +629,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   }
 
   /* ================= listening (audio capture + Whisper) ================= */
-  const SR = 16000, MIN_SEG = 0.8, THRESH = 0.012;
+  const SR = 16000, MIN_SEG = 0.8;
   let asrWorker = null, asrFake = null, asrP = null, callId = 0, ctx = null, stream = null, node = null, listening = false, pending = 0;
   let buf = [], bufLen = 0, speech = 0, silence = 0, queue = [], busyQ = false, secs = 0, tick = null;
 
@@ -682,7 +682,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
   /* iPhone / Safari notes: an AudioContext only runs if it is created (or resumed) inside the tap that started it, so it is
      created at the top of startListening, before any await. Its sample rate may not be 16 kHz, so we resample ourselves. */
   let inRate = SR, rsBuf = new Float32Array(0), rsPos = 0, agg = [], aggLen = 0, wdT = null;
-  const diag = { chunks: 0, peak: 0, state: "", rate: 0, via: "-", gain: 1 };
+  const diag = { chunks: 0, peak: 0, state: "", rate: 0, via: "-", gain: 1, log: [] };
   function resample(chunk) {                         // any input rate → 16 kHz (averaging, then picking samples)
     const ratio = inRate / SR; if (Math.abs(ratio - 1) < 1e-6) return chunk;
     const buf = new Float32Array(rsBuf.length + chunk.length); buf.set(rsBuf); buf.set(chunk, rsBuf.length);
@@ -696,28 +696,43 @@ textarea#txt{max-height:132px;overflow-y:auto}
     rsBuf = buf.slice(keep); rsPos = pos - keep;
     return Float32Array.from(out);
   }
-  /* Automatic gain: speech from a phone can be very quiet. The gain follows the loudest recent speech so it sits near a healthy level;
-     it drops quickly (no clipping) and rises slowly, and it only learns from sound clearly above the room's background. */
-  let gain = 1, gainPk = 0, rawNoise = 0; const GAIN_MAX = 30;
-  function applyGain(a) {
-    let pk = 0, sum = 0; for (let i = 0; i < a.length; i++) { const v = Math.abs(a[i]); if (v > pk) pk = v; sum += a[i] * a[i]; }
-    const rms = Math.sqrt(sum / a.length); diag.peak = Math.max(diag.peak, pk);
-    rawNoise = !rawNoise ? Math.max(rms, 1e-4) : rms < rawNoise ? rawNoise * 0.9 + rms * 0.1 : rawNoise * 1.0005;      // background level: drops at once, rises very slowly
-    if (rms > Math.max(0.0008, rawNoise * 2.5)) gainPk = Math.max(pk, gainPk * 0.998); else gainPk *= 0.9995;
-    const target = gainPk > 0.002 ? Math.min(GAIN_MAX, Math.max(1, 0.35 / gainPk)) : 1;
-    gain += (target - gain) * (target < gain ? 0.3 : target > gain * 2 ? 0.25 : 0.05); diag.gain = gain;
-    if (gain < 1.05) return a;
-    const out = new Float32Array(a.length); for (let i = 0; i < a.length; i++) { const v = a[i] * gain; out[i] = v > 1 ? 1 : v < -1 ? -1 : v; }
+  /* Rooms where the volume keeps changing (people moving, different speakers, a phone far from the sound):
+     1. a gentle high-pass removes rumble and handling noise;
+     2. speech is detected relative to the room's own background level, not at a fixed volume, with hysteresis (a higher bar to start than to continue);
+     3. every finished line is levelled on its own before it goes to the recogniser, so a whisper and a shout reach it at the same loudness. */
+  let hpX = 0, hpY = 0, inSpeech = false;
+  function highPass(a) {
+    const out = new Float32Array(a.length), R = 0.97;
+    for (let i = 0; i < a.length; i++) { const y = a[i] - hpX + R * hpY; hpX = a[i]; hpY = y; out[i] = y; }
+    return out;
+  }
+  function levelSegment(a, floor) {
+    const F = 800, n = Math.ceil(a.length / F), r = new Float32Array(n);
+    for (let i = 0; i < n; i++) { const e = Math.min(a.length, (i + 1) * F); let sum = 0; for (let k = i * F; k < e; k++) sum += a[k] * a[k]; r[i] = Math.sqrt(sum / (e - i * F)); }
+    const loud = [...r].filter(v => v > floor * 2.5).sort((x, y) => x - y);
+    const ref = loud.length ? loud[Math.floor(loud.length * 0.9)] : Math.max(...r, 1e-6);       // how loud this line's louder words are
+    const base = Math.min(40, Math.max(0.2, 0.1 / ref));                                          // bring the line to a standard loudness
+    const g = new Float32Array(n);
+    for (let i = 0; i < n; i++) g[i] = base * Math.min(3, Math.max(1, (0.5 * ref) / Math.max(r[i], 3 * floor)));     // lift quiet words inside the line a little
+    const sm = new Float32Array(n); for (let i = 0; i < n; i++) { let t = 0, c = 0; for (let k = -2; k <= 2; k++) if (g[i + k] !== undefined) { t += g[i + k]; c++; } sm[i] = t / c; }
+    const out = new Float32Array(a.length);
+    for (let i = 0; i < a.length; i++) {
+      const pos = i / F - 0.5, i0 = Math.max(0, Math.floor(pos)), i1 = Math.min(n - 1, i0 + 1), f = Math.max(0, Math.min(1, pos - i0));
+      let v = a[i] * (sm[i0] * (1 - f) + sm[i1] * f), m = Math.abs(v);
+      if (m > 0.8) v = Math.sign(v) * (0.8 + 0.2 * Math.tanh((m - 0.8) / 0.2));                  // soft limit instead of clipping
+      out[i] = v;
+    }
+    diag.gain = base;
     return out;
   }
   function feedIn(chunk) {
     diag.chunks++;
     const out = resample(chunk); if (!out.length) return;
     agg.push(out); aggLen += out.length;
-    if (aggLen >= 1024) { const all = new Float32Array(aggLen); let o = 0; for (const a of agg) { all.set(a, o); o += a.length; } agg = []; aggLen = 0; onAudio(applyGain(all)); }
+    if (aggLen >= 1024) { const all = new Float32Array(aggLen); let o = 0; for (const a of agg) { all.set(a, o); o += a.length; } agg = []; aggLen = 0; onAudio(highPass(all)); }
   }
   async function openAudio(st) {
-    inRate = ctx.sampleRate; diag.rate = inRate; diag.chunks = 0; diag.peak = 0; gain = 1; gainPk = 0; rawNoise = 0; rsBuf = new Float32Array(0); rsPos = 0; agg = []; aggLen = 0;
+    inRate = ctx.sampleRate; diag.rate = inRate; diag.chunks = 0; diag.peak = 0; diag.gain = 1; hpX = hpY = 0; noise = 0; rmsHist = []; inSpeech = false; pre = []; rsBuf = new Float32Array(0); rsPos = 0; agg = []; aggLen = 0;
     const src = ctx.createMediaStreamSource(new MediaStream(st.getAudioTracks()));
     let ok = false;
     if (ctx.audioWorklet && typeof AudioWorkletNode !== "undefined") {
@@ -809,20 +824,26 @@ textarea#txt{max-height:132px;overflow-y:auto}
   let costEMA = 0;
   const keepUpMin = () => Math.min(12, Math.max(MIN_SEG, costEMA * 0.8));
   const keepUpMax = () => Math.min(25, Math.max(+S.max, Math.ceil(costEMA * 1.3)));
-  let noise = 0, pre = [];
-  const dbPct = v => Math.max(0, Math.min(100, (20 * Math.log10(Math.max(v, 1e-5)) + 60) / 54 * 100));      // -60 dB … -6 dB
+  let noise = 0, pre = [], rmsHist = [];
+  const dbPct = v => Math.max(0, Math.min(100, (20 * Math.log10(Math.max(v, 1e-5)) + 70) / 60 * 100));      // -70 dB … -10 dB
   function setLevel(rms, thr) {
-    const w = dbPct(rms) + "%", mark = dbPct(thr) + "%", hot = rms > 0.5;
+    const w = dbPct(rms) + "%", mark = dbPct(thr) + "%", hot = rms > 0.35;
     $$(".lvl").forEach(el => { const i = el.firstElementChild, m = el.lastElementChild; if (i) { i.style.width = w; i.style.background = hot ? "var(--aux)" : rms > thr ? "var(--prt)" : "var(--dim2)"; } if (m) m.style.left = mark; });
   }
   function onAudio(chunk) {
-    let sum = 0; for (let i = 0; i < chunk.length; i++) sum += chunk[i] * chunk[i];
-    const rms = Math.sqrt(sum / chunk.length);
-    noise = !noise ? Math.max(rms, 1e-4) : rms < noise ? noise * 0.9 + rms * 0.1 : noise * 1.0005;      // the room's background level
-    const thr = Math.min(THRESH, Math.max(0.004, noise * 3));
-    setLevel(rms, thr);
+    let sum = 0, pk = 0; for (let i = 0; i < chunk.length; i++) { sum += chunk[i] * chunk[i]; const v = Math.abs(chunk[i]); if (v > pk) pk = v; }
+    const rms = Math.sqrt(sum / chunk.length); diag.peak = Math.max(diag.peak, pk);
+    rmsHist.push(rms); if (rmsHist.length > 62) rmsHist.shift();                       // the room's background = the quietest moment of the last ~4 seconds
+    const lo = Math.min(...rmsHist), hi = Math.max(...rmsHist), est = Math.max(3e-4, lo * 1.3);
+    const warm = rmsHist.length >= 16, steady = rmsHist.length >= 30 && hi < lo * 2.5;     // steady = hardly any change: a hum or a room, not speech
+    if (!noise) noise = 3e-4;                                                          // start by assuming a quiet room
+    if (warm) noise = inSpeech && !steady ? Math.min(noise, est) : est;                // while someone speaks the estimate can only fall, so a long phrase never raises its own bar
+    const enter = Math.max(noise * 3.5, 0.0015), leave = Math.max(noise * 2.2, 0.001);
+    if (!inSpeech && rms > enter) inSpeech = true; else if (inSpeech && rms < leave) inSpeech = false;
+    setLevel(rms, enter);
+    if (DEBUG && (diag.chunks % 4 === 0)) diag.log.push({ t: +(performance.now() / 1000).toFixed(1), rms: +rms.toFixed(4), noise: +noise.toFixed(4), enter: +enter.toFixed(4), inS: inSpeech, speech: +speech.toFixed(2), sil: +silence.toFixed(2) });
     const dur = chunk.length / SR, wasQuiet = speech === 0;
-    if (rms > thr) { speech += dur; silence = 0; } else silence += dur;
+    if (inSpeech) { speech += dur; silence = 0; } else silence += dur;
     if (speech === 0) { pre.push(chunk); if (pre.length > 4) pre.shift(); return; }
     if (wasQuiet) { buf = pre; bufLen = pre.reduce((a, c) => a + c.length, 0); pre = []; }
     buf.push(chunk); bufLen += chunk.length;
@@ -831,7 +852,9 @@ textarea#txt{max-height:132px;overflow-y:auto}
     else if (silence >= pause && speech < MIN_SEG) { buf = []; bufLen = speech = silence = 0; }
   }
   function flush() {
-    const out = new Float32Array(bufLen); let o = 0; for (const c of buf) { out.set(c, o); o += c.length; }
+    const raw = new Float32Array(bufLen); let o = 0; for (const c of buf) { raw.set(c, o); o += c.length; }
+    const out = levelSegment(raw, noise);
+    if (DEBUG) diag.log.push({ flush: true, secs: +(bufLen / SR).toFixed(2), speech: +speech.toFixed(2), gain: +diag.gain.toFixed(1) });
     const dur = Math.max(0.1, bufLen / SR - silence), stamp = nowStamp();
     buf = []; bufLen = speech = silence = 0;
     const meta = { dur, t: stamp, heard: true };
@@ -860,7 +883,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
         $("#perf").textContent = `${total.toFixed(1)} s of audio took ${took.toFixed(1)} s · CPU${batch.length > 1 ? " · caught up " + batch.length + " lines" : ""}`;
         if (epoch === myEpoch) {
           batch.slice(1).forEach(q => { items = items.filter(x => x !== q.item); });
-          if (text && !HALLU.test(text)) { if (S.auto) await translate(text, meta, first); else addReadingLine(text, meta, first); }
+          if (text && !HALLU.test(text) && !(text.replace(/[\s。、.,!?！？]/g, "").length <= 2 && total < 8)) { if (S.auto) await translate(text, meta, first); else addReadingLine(text, meta, first); }
           else dropItem(first);
         }
       } catch (e) { batch.forEach(q => { items = items.filter(x => x !== q.item); }); render(); toast("Couldn’t transcribe a line: " + e.message); }
@@ -898,7 +921,7 @@ textarea#txt{max-height:132px;overflow-y:auto}
     let simd = false; try { simd = WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11])); } catch (_) {}
     el.textContent = [
       "Audio engine: " + (ctx ? ctx.state : "not started") + " · " + diag.via + " · input " + (diag.rate || "-") + " Hz",
-      "Sound received: " + diag.chunks + " blocks · loudest " + diag.peak.toFixed(3) + " · background " + noise.toFixed(4) + " · boost ×" + diag.gain.toFixed(1),
+      "Sound received: " + diag.chunks + " blocks · loudest " + diag.peak.toFixed(3) + " · room background " + noise.toFixed(4) + " · last line boosted ×" + diag.gain.toFixed(1),
       "Speech model: " + (model.error ? "ERROR " + model.error : model.loading ? "loading " + model.pct + "%" : asrP ? "ready" : "not started"),
       "WebAssembly: " + (typeof WebAssembly === "object" ? "yes" : "NO") + " · SIMD: " + (simd ? "yes" : "no") + " · Workers: " + (typeof Worker === "function" ? "yes" : "NO"),
       "Browser: " + navigator.userAgent.replace(/^Mozilla\/5\.0 /, "").slice(0, 120)
